@@ -1,0 +1,5 @@
+# Heroku Procfile Example
+# Copy this to backend/Procfile
+
+web: npm run start:prod
+
