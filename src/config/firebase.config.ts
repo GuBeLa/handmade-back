@@ -15,14 +15,25 @@ export class FirebaseConfig implements OnModuleInit {
   constructor(private configService: ConfigService) {}
 
   onModuleInit() {
-    this.initializeFirebase();
+    console.log('🔧 FirebaseConfig.onModuleInit() called');
+    try {
+      this.initializeFirebase();
+      console.log('✅ Firebase initialization completed');
+    } catch (error) {
+      console.error('❌ Firebase initialization failed:', error);
+      throw error;
+    }
   }
 
   private initializeFirebase() {
+    console.log('🔧 Starting Firebase initialization...');
+    
     // Check if Firebase is already initialized
     if (getApps().length > 0) {
+      console.log('📦 Using existing Firebase app');
       this.app = getApps()[0];
     } else {
+      console.log('🆕 Creating new Firebase app...');
       // Initialize Firebase Admin
       const serviceAccount = this.configService.get<string>('FIREBASE_SERVICE_ACCOUNT');
       
@@ -136,9 +147,14 @@ export class FirebaseConfig implements OnModuleInit {
         }
       } else {
         // Use individual credentials
+        console.log('🔑 Using individual Firebase credentials (FIREBASE_PRIVATE_KEY)');
         const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
         const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY');
         const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
+        
+        console.log(`   Project ID: ${projectId ? '✅' : '❌'} ${projectId || 'missing'}`);
+        console.log(`   Private Key: ${privateKey ? '✅' : '❌'} ${privateKey ? `${privateKey.substring(0, 50)}...` : 'missing'}`);
+        console.log(`   Client Email: ${clientEmail ? '✅' : '❌'} ${clientEmail || 'missing'}`);
         
         if (!projectId || !privateKey || !clientEmail) {
           throw new Error(
@@ -148,8 +164,15 @@ export class FirebaseConfig implements OnModuleInit {
           );
         }
         
+        // Remove quotes if present (from env file)
+        let cleanPrivateKey = privateKey.trim();
+        if ((cleanPrivateKey.startsWith('"') && cleanPrivateKey.endsWith('"')) ||
+            (cleanPrivateKey.startsWith("'") && cleanPrivateKey.endsWith("'"))) {
+          cleanPrivateKey = cleanPrivateKey.slice(1, -1);
+        }
+        
         // Fix private key formatting - replace escaped newlines
-        const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+        const formattedPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
         
         // Validate private key format
         if (!formattedPrivateKey.includes('BEGIN PRIVATE KEY') && !formattedPrivateKey.includes('BEGIN RSA PRIVATE KEY')) {
@@ -172,12 +195,35 @@ export class FirebaseConfig implements OnModuleInit {
     }
 
     // Initialize services
-    this.firestore = getFirestore(this.app);
-    this.storage = getStorage(this.app);
-    this.auth = getAuth(this.app);
+    try {
+      this.firestore = getFirestore(this.app);
+      this.storage = getStorage(this.app);
+      this.auth = getAuth(this.app);
+      
+      // Validate that services were initialized
+      if (!this.firestore) {
+        throw new Error('Firestore failed to initialize');
+      }
+      if (!this.storage) {
+        throw new Error('Storage failed to initialize');
+      }
+      if (!this.auth) {
+        throw new Error('Auth failed to initialize');
+      }
+      
+      console.log('✅ Firebase initialized successfully');
+      console.log(`   Project: ${this.app.options.projectId || 'unknown'}`);
+      console.log(`   Storage Bucket: ${this.app.options.storageBucket || 'unknown'}`);
+    } catch (error) {
+      console.error('❌ Failed to initialize Firebase services:', error);
+      throw new Error(`Failed to initialize Firebase services: ${error.message}`);
+    }
   }
 
   getFirestore(): Firestore {
+    if (!this.firestore) {
+      throw new Error('Firestore is not initialized. Check Firebase configuration.');
+    }
     return this.firestore;
   }
 

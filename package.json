@@ -18,6 +18,7 @@
     "test:cov": "jest --coverage",
     "seed:users": "ts-node -r tsconfig-paths/register src/scripts/seed-users.ts",
     "seed:products": "ts-node -r tsconfig-paths/register src/scripts/seed-products.ts",
+    "seed:all": "ts-node -r tsconfig-paths/register src/scripts/seed-all.ts",
     "generate:jwt-secret": "node generate-jwt-secret.js"
   },
   "dependencies": {

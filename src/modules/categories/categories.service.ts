@@ -8,24 +8,31 @@ export class CategoriesService {
   constructor(private firestoreService: FirestoreService) {}
 
   async findAll(): Promise<any[]> {
-    return this.firestoreService.findAll('categories', (ref) =>
-      ref.where('isActive', '==', true).orderBy('sortOrder', 'asc'),
-    );
+    // Get all categories and filter/sort in memory to avoid composite index requirement
+    const allCategories = await this.firestoreService.findAll('categories');
+    // Filter active categories and sort
+    return allCategories
+      .filter((cat: any) => cat.isActive !== false)
+      .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }
 
   async findTree(): Promise<any[]> {
-    const categories = await this.firestoreService.findAll('categories', (ref) =>
-      ref.where('parentId', '==', null).where('isActive', '==', true).orderBy('sortOrder', 'asc'),
-    );
+    // Get all categories and filter/sort in memory to avoid composite index requirement
+    const allCategories = await this.firestoreService.findAll('categories');
+    
+    // Filter root categories (parentId is null or undefined) and active
+    const rootCategories = allCategories
+      .filter((cat: any) => (!cat.parentId || cat.parentId === null) && cat.isActive !== false)
+      .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
     // Load children for each category
-    for (const category of categories) {
-      category.children = await this.firestoreService.findAll('categories', (ref) =>
-        ref.where('parentId', '==', category.id).where('isActive', '==', true).orderBy('sortOrder', 'asc'),
-      );
+    for (const category of rootCategories) {
+      category.children = allCategories
+        .filter((cat: any) => cat.parentId === category.id && cat.isActive !== false)
+        .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
     }
 
-    return categories;
+    return rootCategories;
   }
 
   async findOne(id: string): Promise<any> {

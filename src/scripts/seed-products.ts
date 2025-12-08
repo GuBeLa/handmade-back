@@ -256,15 +256,28 @@ function initializeFirebase(): Firestore {
 }
 
 async function getOrCreateCategory(db: Firestore, categoryName: string): Promise<string> {
-  // Try to find existing category
-  const categorySnapshot = await db.collection('categories')
-    .where('name', '==', categoryName)
-    .where('isActive', '==', true)
-    .limit(1)
-    .get();
+  // Try to find existing category (check both name and nameEn)
+  const allCategories = await db.collection('categories').get();
+  let existingCategory = null;
+  
+  for (const doc of allCategories.docs) {
+    const data = doc.data();
+    if ((data.name === categoryName || data.nameEn === categoryName) && data.isActive !== false) {
+      existingCategory = { id: doc.id, ...data };
+      break;
+    }
+  }
 
-  if (!categorySnapshot.empty) {
-    return categorySnapshot.docs[0].id;
+  if (existingCategory) {
+    // Update if needed
+    if (existingCategory.isActive === false) {
+      await db.collection('categories').doc(existingCategory.id).update({
+        isActive: true,
+        updatedAt: Timestamp.now(),
+      });
+      console.log(`🔄 Reactivated category: ${categoryName}`);
+    }
+    return existingCategory.id;
   }
 
   // Create new category
@@ -275,7 +288,7 @@ async function getOrCreateCategory(db: Firestore, categoryName: string): Promise
   await categoryRef.set({
     name: categoryName,
     nameEn: categoryName,
-    slug: `${slug}-${Date.now()}`,
+    slug: slug,
     description: `Category for ${categoryName}`,
     descriptionEn: `Category for ${categoryName}`,
     parentId: null,
@@ -346,8 +359,31 @@ async function seedProducts() {
           .get();
 
         if (!existingProduct.empty) {
-          console.log(`⏭️  Product "${productData.title}" already exists for seller ${seller.email}, skipping...`);
-          skipped++;
+          const existing = existingProduct.docs[0];
+          const existingData = existing.data();
+          
+          // Check if product needs update (e.g., stock, price changes)
+          const needsUpdate = 
+            existingData.stock !== productData.stock ||
+            existingData.price !== productData.price ||
+            existingData.isActive === false ||
+            existingData.moderationStatus !== ModerationStatus.APPROVED;
+          
+          if (needsUpdate) {
+            await db.collection('products').doc(existing.id).update({
+              stock: productData.stock,
+              price: productData.price,
+              discountPrice: productData.discountPrice || null,
+              isActive: true,
+              moderationStatus: ModerationStatus.APPROVED,
+              updatedAt: Timestamp.now(),
+            });
+            console.log(`🔄 Updated product: "${productData.title}" - Seller: ${seller.email}`);
+            created++; // Count as created/updated
+          } else {
+            console.log(`⏭️  Product "${productData.title}" already exists for seller ${seller.email}, skipping...`);
+            skipped++;
+          }
           continue;
         }
 
@@ -405,11 +441,17 @@ async function seedProducts() {
     console.log(`⏭️  Skipped: ${skipped} products (already exist)`);
     console.log('✨ Product seeding completed!\n');
 
-    process.exit(0);
+    // Only exit if run directly (not imported)
+    if (require.main === module) {
+      process.exit(0);
+    }
   } catch (error: any) {
     console.error('❌ Seeding failed:', error.message);
     console.error(error);
-    process.exit(1);
+    if (require.main === module) {
+      process.exit(1);
+    }
+    throw error; // Re-throw to allow caller to handle
   }
 }
 

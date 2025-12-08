@@ -171,8 +171,29 @@ async function seedUsers() {
         }
 
         if (existingUser) {
-          console.log(`⏭️  User ${userData.email || userData.phone} already exists, skipping...`);
-          skipped++;
+          // Update user if needed (ensure all fields are set)
+          const needsUpdate = 
+            existingUser.role !== userData.role ||
+            !existingUser.firstName ||
+            !existingUser.lastName ||
+            existingUser.isActive === false;
+          
+          if (needsUpdate) {
+            await db.collection('users').doc(existingUser.id).update({
+              role: userData.role,
+              firstName: userData.firstName,
+              lastName: userData.lastName,
+              isActive: true,
+              isEmailVerified: true,
+              isPhoneVerified: true,
+              updatedAt: Timestamp.now(),
+            });
+            console.log(`🔄 Updated user: ${userData.email || userData.phone} (${userData.role})`);
+            created++; // Count as created/updated
+          } else {
+            console.log(`⏭️  User ${userData.email || userData.phone} already exists, skipping...`);
+            skipped++;
+          }
           continue;
         }
 
@@ -220,11 +241,17 @@ async function seedUsers() {
     });
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-    process.exit(0);
+    // Only exit if run directly (not imported)
+    if (require.main === module) {
+      process.exit(0);
+    }
   } catch (error: any) {
     console.error('❌ Seeding failed:', error.message);
     console.error(error);
-    process.exit(1);
+    if (require.main === module) {
+      process.exit(1);
+    }
+    throw error; // Re-throw to allow caller to handle
   }
 }
 

@@ -5,21 +5,35 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 @Injectable()
 export class FirestoreService {
-  private db: Firestore;
+  private db: Firestore | null = null;
 
-  constructor(private firebaseConfig: FirebaseConfig) {
-    this.db = this.firebaseConfig.getFirestore();
+  constructor(private firebaseConfig: FirebaseConfig) {}
+
+  private getDb(): Firestore {
+    // Lazy initialization - get Firestore when first needed
+    if (!this.db) {
+      try {
+        this.db = this.firebaseConfig.getFirestore();
+        if (!this.db) {
+          throw new Error('Firestore is not initialized. Check Firebase configuration.');
+        }
+      } catch (error) {
+        console.error('❌ Failed to get Firestore instance:', error);
+        throw new Error(`Firestore service initialization failed: ${error.message}`);
+      }
+    }
+    return this.db;
   }
 
   collection(collectionName: string): CollectionReference {
-    return this.db.collection(collectionName);
+    return this.getDb().collection(collectionName);
   }
 
   doc(collectionName: string, docId?: string): DocumentReference {
     if (docId) {
-      return this.db.collection(collectionName).doc(docId);
+      return this.getDb().collection(collectionName).doc(docId);
     }
-    return this.db.collection(collectionName).doc();
+    return this.getDb().collection(collectionName).doc();
   }
 
   async create<T = any>(collectionName: string, data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): Promise<T> {
