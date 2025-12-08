@@ -47,37 +47,62 @@ export class FirebaseConfig implements OnModuleInit {
           
           // Fix private key formatting - handle multiple escape scenarios
           if (serviceAccountJson.private_key) {
-            let privateKey = serviceAccountJson.private_key;
+            let privateKey = String(serviceAccountJson.private_key);
             
-            // Replace escaped newlines (\\n -> \n)
-            privateKey = privateKey.replace(/\\n/g, '\n');
+            // Replace escaped newlines (\\n -> \n) - handle both single and double escaping
+            // Important: Do double-escaped first, then single-escaped
+            privateKey = privateKey.replace(/\\\\n/g, '\n'); // Double escaped first
+            privateKey = privateKey.replace(/\\n/g, '\n'); // Then single escaped
             
-            // Replace literal \n strings (if double-escaped)
-            privateKey = privateKey.replace(/\\\\n/g, '\n');
+            // Trim whitespace but preserve internal structure
+            privateKey = privateKey.trim();
             
-            // Ensure proper PEM format
-            if (!privateKey.includes('BEGIN PRIVATE KEY') && !privateKey.includes('BEGIN RSA PRIVATE KEY')) {
-              // Try to reconstruct if it's missing headers
-              if (privateKey.includes('PRIVATE KEY')) {
-                // Key exists but might be missing BEGIN/END markers
-                if (!privateKey.trim().startsWith('-----BEGIN')) {
-                  privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey.trim()}\n-----END PRIVATE KEY-----`;
-                }
-              } else {
-                throw new Error('Private key does not appear to be in valid PEM format');
-              }
-            }
+            // Check if it's already in valid PEM format (after newline replacement)
+            const hasBeginMarker = privateKey.includes('-----BEGIN PRIVATE KEY-----') || 
+                                   privateKey.includes('-----BEGIN RSA PRIVATE KEY-----');
+            const hasEndMarker = privateKey.includes('-----END PRIVATE KEY-----') || 
+                                 privateKey.includes('-----END RSA PRIVATE KEY-----');
             
-            // Ensure END marker exists
-            if (!privateKey.includes('END PRIVATE KEY') && !privateKey.includes('END RSA PRIVATE KEY')) {
+            // If we have both markers, it should be valid
+            if (hasBeginMarker && hasEndMarker) {
+              // Key appears to be in correct format, just ensure it's properly formatted
+              serviceAccountJson.private_key = privateKey;
+            } else if (hasBeginMarker && !hasEndMarker) {
+              // Has BEGIN but missing END - add it
               if (privateKey.includes('BEGIN PRIVATE KEY')) {
-                privateKey = privateKey.trim() + '\n-----END PRIVATE KEY-----';
+                privateKey = privateKey + '\n-----END PRIVATE KEY-----';
               } else if (privateKey.includes('BEGIN RSA PRIVATE KEY')) {
-                privateKey = privateKey.trim() + '\n-----END RSA PRIVATE KEY-----';
+                privateKey = privateKey + '\n-----END RSA PRIVATE KEY-----';
+              }
+              serviceAccountJson.private_key = privateKey;
+            } else if (!hasBeginMarker && hasEndMarker) {
+              // Has END but missing BEGIN - add it
+              if (privateKey.includes('END PRIVATE KEY')) {
+                privateKey = '-----BEGIN PRIVATE KEY-----\n' + privateKey;
+              } else if (privateKey.includes('END RSA PRIVATE KEY')) {
+                privateKey = '-----BEGIN RSA PRIVATE KEY-----\n' + privateKey;
+              }
+              serviceAccountJson.private_key = privateKey;
+            } else {
+              // No markers found - check if it might be the key content only
+              // Check if it looks like base64 content
+              const base64Pattern = /^[A-Za-z0-9+/=\s\n-]+$/;
+              const cleanKey = privateKey.replace(/[\s\n-]/g, '');
+              
+              if (privateKey.length > 100 && base64Pattern.test(privateKey)) {
+                // Looks like base64 encoded key without markers - add them
+                privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+                serviceAccountJson.private_key = privateKey;
+              } else {
+                // Debug info for troubleshooting
+                const preview = privateKey.substring(0, 100).replace(/\n/g, '\\n');
+                throw new Error(
+                  `Private key does not appear to be in valid PEM format. ` +
+                  `Missing BEGIN/END markers. Preview (first 100 chars): ${preview}... ` +
+                  `Length: ${privateKey.length}, Has BEGIN: ${hasBeginMarker}, Has END: ${hasEndMarker}`
+                );
               }
             }
-            
-            serviceAccountJson.private_key = privateKey;
           }
           
           this.app = initializeApp({
