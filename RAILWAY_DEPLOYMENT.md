@@ -37,21 +37,23 @@
 
 ### Step 4: Environment Variables-ის დამატება
 
+**⚠️ მნიშვნელოვანი:** Railway-ზე environment variables **უნდა** დაყენდეს manually. `.env` ფაილი არ იკითხება production-ში!
+
 1. Project-ში გადადით **"Variables"** tab-ზე
-2. დაამატეთ შემდეგი variables:
+2. Click **"+ New Variable"** ან **"Add Variable"**
+3. დაამატეთ შემდეგი variables (თითოეული ცალ-ცალკე):
 
-```env
-# Application
-NODE_ENV=production
-PORT=3005
+**Application:**
+- `NODE_ENV` = `production`
+- `PORT` = `3005`
 
-# Frontend URLs (განაახლეთ თქვენი domains-ით)
-FRONTEND_URL=https://your-frontend-domain.com
-ADMIN_URL=https://your-admin-domain.com
+**Frontend URLs (განაახლეთ თქვენი domains-ით):**
+- `FRONTEND_URL` = `https://your-frontend-domain.com`
+- `ADMIN_URL` = `https://your-admin-domain.com`
 
-# JWT (შექმენით ძლიერი secret!)
-JWT_SECRET=your-very-strong-secret-key-minimum-32-characters-long-change-this
-JWT_EXPIRES_IN=7d
+**JWT (გამოიყენეთ ეს secret ან შექმენით ახალი):**
+- `JWT_SECRET` = `12080f221149790dbadc478e4be7836bd8b09da6d2d17c687d896758a19a905d96de419913d9770ba2504a5e09f115a4295b5a6b1f0f41018d17e28e6e1ce96b`
+- `JWT_EXPIRES_IN` = `7d`
 
 # Firebase - Service Account JSON (მთელი JSON ერთ ხაზზე!)
 FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"your-project-id","private_key":"-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n","client_email":"firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com"}
