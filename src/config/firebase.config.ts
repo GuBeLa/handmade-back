@@ -29,16 +29,55 @@ export class FirebaseConfig implements OnModuleInit {
       if (serviceAccount && serviceAccount !== '{"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}') {
         try {
           // Use service account JSON (recommended for production)
-          const serviceAccountJson = JSON.parse(serviceAccount);
+          let serviceAccountJson: any;
+          
+          // Try to parse as JSON string first
+          try {
+            serviceAccountJson = typeof serviceAccount === 'string' 
+              ? JSON.parse(serviceAccount) 
+              : serviceAccount;
+          } catch (parseError) {
+            throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT as JSON: ${parseError.message}`);
+          }
           
           // Validate required fields
           if (!serviceAccountJson.project_id || !serviceAccountJson.private_key || !serviceAccountJson.client_email) {
             throw new Error('FIREBASE_SERVICE_ACCOUNT is missing required fields (project_id, private_key, client_email)');
           }
           
-          // Fix private key formatting if needed
+          // Fix private key formatting - handle multiple escape scenarios
           if (serviceAccountJson.private_key) {
-            serviceAccountJson.private_key = serviceAccountJson.private_key.replace(/\\n/g, '\n');
+            let privateKey = serviceAccountJson.private_key;
+            
+            // Replace escaped newlines (\\n -> \n)
+            privateKey = privateKey.replace(/\\n/g, '\n');
+            
+            // Replace literal \n strings (if double-escaped)
+            privateKey = privateKey.replace(/\\\\n/g, '\n');
+            
+            // Ensure proper PEM format
+            if (!privateKey.includes('BEGIN PRIVATE KEY') && !privateKey.includes('BEGIN RSA PRIVATE KEY')) {
+              // Try to reconstruct if it's missing headers
+              if (privateKey.includes('PRIVATE KEY')) {
+                // Key exists but might be missing BEGIN/END markers
+                if (!privateKey.trim().startsWith('-----BEGIN')) {
+                  privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey.trim()}\n-----END PRIVATE KEY-----`;
+                }
+              } else {
+                throw new Error('Private key does not appear to be in valid PEM format');
+              }
+            }
+            
+            // Ensure END marker exists
+            if (!privateKey.includes('END PRIVATE KEY') && !privateKey.includes('END RSA PRIVATE KEY')) {
+              if (privateKey.includes('BEGIN PRIVATE KEY')) {
+                privateKey = privateKey.trim() + '\n-----END PRIVATE KEY-----';
+              } else if (privateKey.includes('BEGIN RSA PRIVATE KEY')) {
+                privateKey = privateKey.trim() + '\n-----END RSA PRIVATE KEY-----';
+              }
+            }
+            
+            serviceAccountJson.private_key = privateKey;
           }
           
           this.app = initializeApp({
