@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import twilio from 'twilio';
+// Twilio SDK uses CommonJS, so we need to use require
+const twilio = require('twilio');
 import type { Twilio } from 'twilio';
 
 @Injectable()
