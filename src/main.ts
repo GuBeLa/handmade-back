@@ -2,9 +2,18 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { Logger } from '@nestjs/common';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+  
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
+
+  // Global exception filter for better error handling
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // Enable CORS with flexible origin handling for development
   const allowedOrigins = [
@@ -100,9 +109,21 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || 3005;
+  
+  // Global error handler for unhandled exceptions
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
+    process.exit(1);
+  });
+
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger docs available at: http://localhost:${port}/api/docs`);
+  logger.log(`🚀 Application is running on: http://localhost:${port}`);
+  logger.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  logger.log(`🔍 Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 
 bootstrap();
