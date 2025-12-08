@@ -41,8 +41,29 @@ export class FirebaseConfig implements OnModuleInit {
           }
           
           // Validate required fields
-          if (!serviceAccountJson.project_id || !serviceAccountJson.private_key || !serviceAccountJson.client_email) {
-            throw new Error('FIREBASE_SERVICE_ACCOUNT is missing required fields (project_id, private_key, client_email)');
+          if (!serviceAccountJson.project_id) {
+            throw new Error('FIREBASE_SERVICE_ACCOUNT is missing required field: project_id');
+          }
+          if (!serviceAccountJson.client_email) {
+            throw new Error('FIREBASE_SERVICE_ACCOUNT is missing required field: client_email');
+          }
+          if (!serviceAccountJson.private_key) {
+            throw new Error(
+              'FIREBASE_SERVICE_ACCOUNT is missing required field: private_key. ' +
+              'Make sure you copied the entire private_key from the Firebase service account JSON file, ' +
+              'not the private_key_id. The private_key should start with "-----BEGIN PRIVATE KEY-----"'
+            );
+          }
+          
+          // Check if private_key looks like private_key_id (common mistake)
+          const privateKeyValue = String(serviceAccountJson.private_key).trim();
+          if (privateKeyValue.length < 100 && /^[a-f0-9]+$/i.test(privateKeyValue)) {
+            throw new Error(
+              `FIREBASE_SERVICE_ACCOUNT appears to have private_key_id instead of private_key. ` +
+              `The value "${privateKeyValue}" looks like a key ID (${privateKeyValue.length} chars), not a private key. ` +
+              `Please download a fresh service account JSON from Firebase Console and copy the entire private_key field ` +
+              `(it should be much longer, ~1600+ characters, and start with "-----BEGIN PRIVATE KEY-----")`
+            );
           }
           
           // Fix private key formatting - handle multiple escape scenarios
