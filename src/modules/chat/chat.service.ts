@@ -189,4 +189,66 @@ export class ChatService {
 
     return allMessages;
   }
+
+  async getConversations(userId: string): Promise<any[]> {
+    // Get all unique conversations (both as sender and receiver)
+    const sentMessages: any[] = await this.firestoreService.findAll('chat_messages', (ref) =>
+      ref.where('senderId', '==', userId),
+    );
+
+    const receivedMessages: any[] = await this.firestoreService.findAll('chat_messages', (ref) =>
+      ref.where('receiverId', '==', userId),
+    );
+
+    // Combine all messages
+    const allMessages = [...sentMessages, ...receivedMessages];
+
+    // Group by conversation partner (seller or buyer)
+    const conversationsMap = new Map<string, any>();
+
+    for (const msg of allMessages) {
+      const partnerId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+      
+      if (!conversationsMap.has(partnerId)) {
+        const partner = await this.firestoreService.findById('users', partnerId);
+        conversationsMap.set(partnerId, {
+          partnerId,
+          partner: partner ? {
+            id: partner.id,
+            firstName: partner.firstName,
+            lastName: partner.lastName,
+            avatar: partner.avatar,
+            role: partner.role,
+          } : null,
+          lastMessage: msg,
+          unreadCount: 0,
+          orderId: msg.orderId,
+        });
+      }
+
+      const conversation = conversationsMap.get(partnerId);
+      
+      // Update last message if this one is newer
+      const msgTime = msg.createdAt?.toMillis?.() || (msg.createdAt?.seconds ? msg.createdAt.seconds * 1000 : 0) || 0;
+      const lastMsgTime = conversation.lastMessage.createdAt?.toMillis?.() || (conversation.lastMessage.createdAt?.seconds ? conversation.lastMessage.createdAt.seconds * 1000 : 0) || 0;
+      
+      if (msgTime > lastMsgTime) {
+        conversation.lastMessage = msg;
+      }
+
+      // Count unread messages
+      if (msg.receiverId === userId && !msg.isRead) {
+        conversation.unreadCount++;
+      }
+    }
+
+    // Convert to array and sort by last message time
+    const conversations = Array.from(conversationsMap.values()).sort((a, b) => {
+      const aTime = a.lastMessage.createdAt?.toMillis?.() || (a.lastMessage.createdAt?.seconds ? a.lastMessage.createdAt.seconds * 1000 : 0) || 0;
+      const bTime = b.lastMessage.createdAt?.toMillis?.() || (b.lastMessage.createdAt?.seconds ? b.lastMessage.createdAt.seconds * 1000 : 0) || 0;
+      return bTime - aTime; // Most recent first
+    });
+
+    return conversations;
+  }
 }

@@ -45,6 +45,12 @@ export class ChatController {
     return this.chatService.getDirectMessages(sellerId, req.user.sub);
   }
 
+  @Get('conversations')
+  @ApiOperation({ summary: 'Get all conversations' })
+  async getConversations(@Request() req) {
+    return this.chatService.getConversations(req.user.sub);
+  }
+
   @Put(':id/read')
   @ApiOperation({ summary: 'Mark message as read' })
   async markAsRead(@Param('id') id: string, @Request() req) {
