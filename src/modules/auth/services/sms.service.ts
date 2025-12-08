@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as twilio from 'twilio';
+import twilio from 'twilio';
+import type { Twilio } from 'twilio';
 
 @Injectable()
 export class SmsService {
-  private client: twilio.Twilio;
+  private client: Twilio | null = null;
   private verificationCodes: Map<string, { code: string; expiresAt: Date }> = new Map();
 
   constructor(private configService: ConfigService) {
