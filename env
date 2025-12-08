@@ -36,7 +36,7 @@ NODE_ENV=development
 # ============================================
 
 # Firebase handles authentication, but you can use custom JWT for additional tokens
-JWT_SECRET=your-secret-key-change-in-production-min-32-chars
+JWT_SECRET=12080f221149790dbadc478e4be7836bd8b09da6d2d17c687d896758a19a905d96de419913d9770ba2504a5e09f115a4295b5a6b1f0f41018d17e28e6e1ce96b
 JWT_EXPIRES_IN=7d
 
 # OAuth Providers (for social login via Firebase)
