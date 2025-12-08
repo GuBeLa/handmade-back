@@ -29,6 +29,15 @@ const PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=800&fit=crop',
 ];
 
+// Category images mapping
+const CATEGORY_IMAGES: {[key: string]: string} = {
+  'Jewelry': 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop',
+  'Home Decor': 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=400&fit=crop',
+  'Clothing': 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop',
+  'Accessories': 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop',
+  'Art & Crafts': 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400&h=400&fit=crop',
+};
+
 // Test products data
 const testProducts = [
   // Jewelry
@@ -270,12 +279,20 @@ async function getOrCreateCategory(db: Firestore, categoryName: string): Promise
 
   if (existingCategory) {
     // Update if needed
+    const updates: any = {};
     if (existingCategory.isActive === false) {
-      await db.collection('categories').doc(existingCategory.id).update({
-        isActive: true,
-        updatedAt: Timestamp.now(),
-      });
+      updates.isActive = true;
       console.log(`🔄 Reactivated category: ${categoryName}`);
+    }
+    // Update icon if missing
+    if (!existingCategory.icon && CATEGORY_IMAGES[categoryName]) {
+      updates.icon = CATEGORY_IMAGES[categoryName];
+      updates.image = CATEGORY_IMAGES[categoryName];
+      console.log(`✅ Updated category icon: ${categoryName}`);
+    }
+    if (Object.keys(updates).length > 0) {
+      updates.updatedAt = Timestamp.now();
+      await db.collection('categories').doc(existingCategory.id).update(updates);
     }
     return existingCategory.id;
   }
@@ -283,6 +300,7 @@ async function getOrCreateCategory(db: Firestore, categoryName: string): Promise
   // Create new category
   const slug = categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const now = Timestamp.now();
+  const categoryImage = CATEGORY_IMAGES[categoryName] || PLACEHOLDER_IMAGES[0];
   
   const categoryRef = db.collection('categories').doc();
   await categoryRef.set({
@@ -292,7 +310,8 @@ async function getOrCreateCategory(db: Firestore, categoryName: string): Promise
     description: `Category for ${categoryName}`,
     descriptionEn: `Category for ${categoryName}`,
     parentId: null,
-    image: PLACEHOLDER_IMAGES[0],
+    image: categoryImage,
+    icon: categoryImage,
     sortOrder: 0,
     isActive: true,
     createdAt: now,

@@ -50,56 +50,54 @@ export class ProductsService {
   }
 
   async findAll(filterDto: ProductFilterDto): Promise<{ products: any[]; total: number }> {
-    const {
-      page = 1,
-      limit = 20,
-      categoryId,
-      sellerId,
-      minPrice,
-      maxPrice,
-      region,
-      material,
-      minRating,
-      search,
-      isFeatured,
-    } = filterDto;
+    try {
+      const {
+        page = 1,
+        limit = 20,
+        categoryId,
+        sellerId,
+        minPrice,
+        maxPrice,
+        region,
+        material,
+        minRating,
+        search,
+        isFeatured,
+      } = filterDto;
 
-    let queryRef: any = this.firestoreService.collection('products')
-      .where('isActive', '==', true)
-      .where('moderationStatus', '==', ModerationStatus.APPROVED);
-
-    if (categoryId) {
-      queryRef = queryRef.where('categoryId', '==', categoryId);
-    }
-
-    if (sellerId) {
-      queryRef = queryRef.where('sellerId', '==', sellerId);
-    }
-
-    if (minPrice !== undefined) {
-      queryRef = queryRef.where('price', '>=', minPrice);
-    }
-
-    if (maxPrice !== undefined) {
-      queryRef = queryRef.where('price', '<=', maxPrice);
-    }
-
-    if (material) {
-      queryRef = queryRef.where('material', '==', material);
-    }
-
-    if (minRating !== undefined) {
-      queryRef = queryRef.where('averageRating', '>=', minRating);
-    }
-
-    if (isFeatured) {
-      queryRef = queryRef.where('isFeatured', '==', true);
-    }
-
-    queryRef = queryRef.orderBy('createdAt', 'desc');
-
-    const snapshot = await queryRef.get();
-    let products = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      // Get all products and filter in memory to avoid composite index requirements
+      // This is acceptable for small to medium datasets
+      let allProducts = await this.firestoreService.findAll('products');
+      
+      // If no products found, return empty result
+      if (!allProducts || allProducts.length === 0) {
+        return { products: [], total: 0 };
+      }
+    
+    // Filter products in memory
+    let products = allProducts.filter((p: any) => {
+      // Basic filters
+      if (p.isActive !== true) return false;
+      if (p.moderationStatus !== ModerationStatus.APPROVED) return false;
+      
+      // Additional filters
+      if (categoryId && p.categoryId !== categoryId) return false;
+      if (sellerId && p.sellerId !== sellerId) return false;
+      if (minPrice !== undefined && p.price < minPrice) return false;
+      if (maxPrice !== undefined && p.price > maxPrice) return false;
+      if (material && p.material !== material) return false;
+      if (minRating !== undefined && (p.averageRating || 0) < minRating) return false;
+      if (isFeatured && p.isFeatured !== true) return false;
+      
+      return true;
+    });
+    
+    // Sort by createdAt (descending)
+    products.sort((a: any, b: any) => {
+      const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
+      const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
+      return bTime - aTime;
+    });
 
     // Filter by search (client-side for now, can be optimized with Algolia)
     if (search) {
@@ -134,7 +132,11 @@ export class ProductsService {
       }
     }
 
-    return { products, total };
+      return { products, total };
+    } catch (error: any) {
+      console.error('❌ Error in ProductsService.findAll:', error);
+      throw new Error(`Failed to fetch products: ${error.message}`);
+    }
   }
 
   async findOne(id: string): Promise<any> {

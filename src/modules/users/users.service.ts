@@ -97,18 +97,34 @@ export class UsersService {
   }
 
   async getSellerPublicProfile(sellerId: string): Promise<any> {
+    const user: any = await this.findById(sellerId);
+    
+    if (!user) {
+      throw new NotFoundException('Seller not found');
+    }
+
+    if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
+      throw new BadRequestException('User is not a seller');
+    }
+
     const profile: any = await this.firestoreService.findOneBy(
       'seller_profiles',
       'userId',
       sellerId,
     );
 
-    if (!profile || !profile.isActive || profile.moderationStatus !== ModerationStatus.APPROVED) {
-      throw new NotFoundException('Seller profile not found');
-    }
-
-    const user = await this.findById(sellerId);
-    return { ...profile, user };
+    // Return user and profile even if profile doesn't exist yet
+    return {
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        avatar: user.avatar,
+      },
+      sellerProfile: profile || null,
+    };
   }
 
   async moderateSellerProfile(
