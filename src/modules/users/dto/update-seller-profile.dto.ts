@@ -25,6 +25,11 @@ export class UpdateSellerProfileDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  profilePicture?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   coverPhoto?: string;
 
   @ApiProperty({ required: false })

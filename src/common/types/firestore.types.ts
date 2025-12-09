@@ -29,6 +29,8 @@ export interface SellerProfile {
   address?: string;
   latitude?: number;
   longitude?: number;
+  profilePicture?: string;
+  coverPhoto?: string;
   workingHours?: {
     [key: string]: {
       open: string;
