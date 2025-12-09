@@ -79,8 +79,12 @@ export class UsersController {
   }
 
   @Get('sellers/:id')
-  @ApiOperation({ summary: 'Get public seller profile' })
-  async getPublicSellerProfile(@Param('id') sellerId: string) {
+  @ApiOperation({ summary: 'Get public seller profile with follow status (optional auth)' })
+  async getPublicSellerProfile(@Param('id') sellerId: string, @Request() req?: any) {
+    const userId = req?.user?.sub;
+    if (userId) {
+      return this.usersService.getSellerPublicProfileWithFollowStatus(sellerId, userId);
+    }
     return this.usersService.getSellerPublicProfile(sellerId);
   }
 
@@ -101,5 +105,37 @@ export class UsersController {
       req.user.sub,
     );
   }
-}
+
+  @Post('sellers/:id/follow')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Follow a seller' })
+  async followSeller(@Param('id') sellerId: string, @Request() req) {
+    return this.usersService.followSeller(req.user.sub, sellerId);
+  }
+
+  @Post('sellers/:id/unfollow')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unfollow a seller' })
+  async unfollowSeller(@Param('id') sellerId: string, @Request() req) {
+    return this.usersService.unfollowSeller(req.user.sub, sellerId);
+  }
+
+  @Get('sellers/:id/follow-status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check if following a seller' })
+  async getFollowStatus(@Param('id') sellerId: string, @Request() req) {
+    const isFollowing = await this.usersService.isFollowingSeller(req.user.sub, sellerId);
+    return { isFollowing };
+  }
+
+  @Get('followed-sellers')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of followed sellers' })
+  async getFollowedSellers(@Request() req) {
+    return this.usersService.getFollowedSellers(req.user.sub);
+  }
 

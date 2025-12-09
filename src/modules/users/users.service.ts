@@ -178,4 +178,145 @@ export class UsersService {
       message: 'Password changed successfully',
     };
   }
+
+  async followSeller(userId: string, sellerId: string): Promise<any> {
+    // Verify seller exists and is a seller
+    const seller: any = await this.findById(sellerId);
+    if (!seller || (seller.role !== UserRole.SELLER && seller.role !== UserRole.ADMIN)) {
+      throw new BadRequestException('Invalid seller');
+    }
+
+    if (userId === sellerId) {
+      throw new BadRequestException('Cannot follow yourself');
+    }
+
+    // Check if already following
+    const existingFollow = await this.firestoreService.findOneByTwoFields(
+      'seller_follows',
+      'userId',
+      userId,
+      'sellerId',
+      sellerId,
+    );
+
+    if (existingFollow) {
+      throw new BadRequestException('Already following this seller');
+    }
+
+    // Create follow relationship
+    const follow = await this.firestoreService.create('seller_follows', {
+      userId,
+      sellerId,
+      createdAt: new Date(),
+    });
+
+    // Update seller profile followers count
+    const sellerProfile: any = await this.firestoreService.findOneBy(
+      'seller_profiles',
+      'userId',
+      sellerId,
+    );
+
+    if (sellerProfile) {
+      const currentFollowers = sellerProfile.followersCount || 0;
+      await this.firestoreService.update('seller_profiles', sellerProfile.id, {
+        followersCount: currentFollowers + 1,
+      });
+    }
+
+    return {
+      message: 'Successfully followed seller',
+      follow,
+    };
+  }
+
+  async unfollowSeller(userId: string, sellerId: string): Promise<any> {
+    // Find and delete follow relationship
+    const follow: any = await this.firestoreService.findOneByTwoFields(
+      'seller_follows',
+      'userId',
+      userId,
+      'sellerId',
+      sellerId,
+    );
+
+    if (!follow) {
+      throw new NotFoundException('Not following this seller');
+    }
+
+    await this.firestoreService.delete('seller_follows', follow.id);
+
+    // Update seller profile followers count
+    const sellerProfile: any = await this.firestoreService.findOneBy(
+      'seller_profiles',
+      'userId',
+      sellerId,
+    );
+
+    if (sellerProfile) {
+      const currentFollowers = sellerProfile.followersCount || 0;
+      await this.firestoreService.update('seller_profiles', sellerProfile.id, {
+        followersCount: Math.max(0, currentFollowers - 1),
+      });
+    }
+
+    return {
+      message: 'Successfully unfollowed seller',
+    };
+  }
+
+  async isFollowingSeller(userId: string, sellerId: string): Promise<boolean> {
+    const follow = await this.firestoreService.findOneByTwoFields(
+      'seller_follows',
+      'userId',
+      userId,
+      'sellerId',
+      sellerId,
+    );
+    return !!follow;
+  }
+
+  async getFollowedSellers(userId: string): Promise<any[]> {
+    const follows = await this.firestoreService.findManyBy('seller_follows', 'userId', userId);
+
+    const sellers = await Promise.all(
+      follows.map(async (follow: any) => {
+        const seller: any = await this.findById(follow.sellerId);
+        const sellerProfile: any = await this.firestoreService.findOneBy(
+          'seller_profiles',
+          'userId',
+          follow.sellerId,
+        );
+
+        return {
+          id: seller.id,
+          firstName: seller.firstName,
+          lastName: seller.lastName,
+          email: seller.email,
+          phone: seller.phone,
+          avatar: seller.avatar,
+          sellerProfile: sellerProfile || null,
+        };
+      }),
+    );
+
+    return sellers;
+  }
+
+  async getSellerPublicProfileWithFollowStatus(sellerId: string, userId?: string): Promise<any> {
+    const profile = await this.getSellerPublicProfile(sellerId);
+    
+    if (userId) {
+      const isFollowing = await this.isFollowingSeller(userId, sellerId);
+      return {
+        ...profile,
+        isFollowing,
+      };
+    }
+
+    return {
+      ...profile,
+      isFollowing: false,
+    };
+  }
 }

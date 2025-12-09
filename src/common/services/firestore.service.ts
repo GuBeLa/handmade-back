@@ -103,5 +103,26 @@ export class FirestoreService {
     
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as T));
   }
+
+  async findOneByTwoFields<T = any>(
+    collectionName: string,
+    field1: string,
+    value1: any,
+    field2: string,
+    value2: any,
+  ): Promise<T | null> {
+    const snapshot = await this.collection(collectionName)
+      .where(field1, '==', value1)
+      .where(field2, '==', value2)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) {
+      return null;
+    }
+    
+    const doc = snapshot.docs[0];
+    return { id: doc.id, ...doc.data() } as T;
+  }
 }
 
