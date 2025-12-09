@@ -90,8 +90,10 @@ export class UsersService {
       userId,
     );
 
+    // Return null if profile doesn't exist instead of throwing error
+    // This allows the frontend to handle the case where seller hasn't created a profile yet
     if (!profile) {
-      throw new NotFoundException('Seller profile not found');
+      return null;
     }
 
     const user = await this.findById(userId);
