@@ -70,16 +70,28 @@ export class UsersService {
     userId: string,
     updateDto: UpdateSellerProfileDto,
   ): Promise<any> {
+    const user: any = await this.findById(userId);
+
+    if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
+      throw new BadRequestException('User must be a seller');
+    }
+
     const profile: any = await this.firestoreService.findOneBy(
       'seller_profiles',
       'userId',
       userId,
     );
 
+    // If profile doesn't exist, create it
     if (!profile) {
-      throw new NotFoundException('Seller profile not found');
+      return this.firestoreService.create('seller_profiles', {
+        ...updateDto,
+        userId,
+        moderationStatus: ModerationStatus.PENDING,
+      });
     }
 
+    // If profile exists, update it
     return this.firestoreService.update('seller_profiles', profile.id, updateDto);
   }
 
