@@ -2,11 +2,12 @@
 
 ## 🌱 Seed Scripts
 
-შექმნილია 3 seed script:
+შექმნილია 4 seed script:
 
 1. **`seed:users`** - იუზერების seeding
 2. **`seed:products`** - პროდუქტების seeding
 3. **`seed:all`** - ყველაფრის seeding (users + products)
+4. **`seed:comprehensive`** - ⭐ **ახალი!** სრული მონაცემების seeding (წაშლის არსებულ მონაცემებს და შექმნის ახალს)
 
 ## ✅ Idempotent (Safe to Run Multiple Times)
 
@@ -19,7 +20,20 @@
 
 ## 🚀 გამოყენება:
 
-### Option 1: Seed Everything (რეკომენდებული)
+### Option 1: Comprehensive Seeding (რეკომენდებული - ახალი!)
+
+```bash
+cd backend
+npm run seed:comprehensive
+```
+
+ეს გააკეთებს:
+1. 🗑️ წაშლის არსებულ მონაცემებს (products, categories, users, seller profiles)
+2. 👥 შექმნის 8 იუზერს (3 buyers, 5 sellers სრული პროფილებით, 1 admin)
+3. 📁 შექმნის 10 კატეგორიას ფოტოებით
+4. 📦 შექმნის 20+ პროდუქტს ფოტოებით
+
+### Option 2: Seed Everything (idempotent - არ წაშლის არსებულ მონაცემებს)
 
 ```bash
 cd backend
@@ -30,7 +44,7 @@ npm run seed:all
 1. Users seeding
 2. Products seeding
 
-### Option 2: Seed Separately
+### Option 3: Seed Separately
 
 ```bash
 # Seed only users
@@ -42,7 +56,67 @@ npm run seed:products
 
 ## 📝 რა იწერება:
 
-### Users (6 users):
+### Comprehensive Seeding (`seed:comprehensive`):
+
+#### Users (8 users):
+- **3 Buyers**: buyer1@test.com, buyer2@test.com, buyer3@test.com
+- **5 Sellers** სრული პროფილებით:
+  - seller1@test.com - ანას ხელნაკეთი ნაწარმი (სამკაულები)
+  - seller2@test.com - დავითის ხელნაკეთი ტანსაცმელი
+  - seller3@test.com - თამარის ხელნაკეთი სახლის დეკორი
+  - seller4@test.com - ლუკას ხელნაკეთი ხის ნაწარმი
+  - seller5@test.com - სოფიოს ხელნაკეთი ქსოვილი
+- **1 Admin**: admin@test.com
+
+**Password:** `password123` (buyers/sellers), `admin123` (admin)
+
+**Seller Profiles Include:**
+- ✅ Shop name and description
+- ✅ Address with coordinates (latitude/longitude)
+- ✅ Cover photo and profile picture
+- ✅ Working hours for each day
+- ✅ Followers, ratings, sales data
+
+#### Categories (10 categories):
+- სამკაულები (Jewelry)
+- სახლის დეკორი (Home Decor)
+- ტანსაცმელი (Clothing)
+- აქსესუარები (Accessories)
+- ხელოვნება და ხელნაკეთი (Art & Crafts)
+- ქსოვილი (Textiles)
+- ხის ნაწარმი (Woodwork)
+- კერამიკა (Ceramics)
+- წიგნები და ბარათები (Books & Cards)
+- საბავშვო ნივთები (Kids Items)
+
+ყველა category:
+- ✅ Has icon and image
+- ✅ Georgian and English names
+- ✅ Active status
+
+#### Products (20+ products):
+- სამკაულები (4 products) - Seller 1
+- ტანსაცმელი (4 products) - Seller 2
+- სახლის დეკორი (4 products) - Seller 3
+- ხის ნაწარმი (3 products) - Seller 4
+- ქსოვილი (2 products) - Seller 5
+- აქსესუარები (2 products)
+- კერამიკა (1 product)
+- წიგნები და ბარათები (1 product)
+- საბავშვო ნივთები (1 product)
+
+ყველა product:
+- ✅ Auto-approved (moderationStatus: APPROVED)
+- ✅ Active (isActive: true)
+- ✅ Has multiple high-quality images
+- ✅ Georgian and English descriptions
+- ✅ Realistic ratings and reviews
+- ✅ Variants (sizes, colors) where applicable
+- ✅ Distributed among sellers
+
+### Standard Seeding (`seed:all`):
+
+#### Users (6 users):
 - **2 Buyers**: buyer1@test.com, buyer2@test.com
 - **2 Sellers**: seller1@test.com, seller2@test.com
 - **1 Admin**: admin@test.com
@@ -50,20 +124,14 @@ npm run seed:products
 
 **Password:** `password123` (buyers/sellers), `admin123` (admin), `mod123` (moderator)
 
-### Products (10 products):
+#### Products (10 products):
 - Jewelry (2 products)
 - Home Decor (2 products)
 - Clothing (2 products)
 - Accessories (2 products)
 - Art & Crafts (2 products)
 
-ყველა product:
-- ✅ Auto-approved (moderationStatus: APPROVED)
-- ✅ Active (isActive: true)
-- ✅ Has placeholder images
-- ✅ Distributed among sellers
-
-### Categories:
+#### Categories:
 - Auto-created თუ არ არსებობს
 - Categories: Jewelry, Home Decor, Clothing, Accessories, Art & Crafts
 
@@ -128,5 +196,7 @@ npm run seed:products
 
 ---
 
-**🎯 Tip:** გამოიყენეთ `npm run seed:all` რომ ყველაფერი ერთად დაიწეროს!
+**🎯 Tip:** გამოიყენეთ `npm run seed:comprehensive` რომ სრულად შევსებული მონაცემები შეიქმნას! 
+
+**⚠️ Warning:** `seed:comprehensive` წაშლის არსებულ მონაცემებს. თუ გსურთ idempotent seeding (არ წაშლის არსებულ მონაცემებს), გამოიყენეთ `npm run seed:all`.
 

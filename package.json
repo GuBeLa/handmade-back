@@ -19,6 +19,7 @@
     "seed:users": "ts-node -r tsconfig-paths/register src/scripts/seed-users.ts",
     "seed:products": "ts-node -r tsconfig-paths/register src/scripts/seed-products.ts",
     "seed:all": "ts-node -r tsconfig-paths/register src/scripts/seed-all.ts",
+    "seed:comprehensive": "ts-node -r tsconfig-paths/register src/scripts/seed-comprehensive.ts",
     "generate:jwt-secret": "node generate-jwt-secret.js"
   },
   "dependencies": {
