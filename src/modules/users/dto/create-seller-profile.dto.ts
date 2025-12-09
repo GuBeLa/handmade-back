@@ -64,5 +64,9 @@ export class CreateSellerProfileDto {
   @IsOptional()
   @IsUrl()
   websiteUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  workingHours?: any;
 }
 

@@ -66,5 +66,9 @@ export class UpdateSellerProfileDto {
   @IsOptional()
   @IsUrl()
   websiteUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  workingHours?: any;
 }
 

@@ -27,6 +27,15 @@ export interface SellerProfile {
   region: string;
   city: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
+  workingHours?: {
+    [key: string]: {
+      open: string;
+      close: string;
+      closed: boolean;
+    };
+  };
   phone?: string;
   email?: string;
   website?: string;
