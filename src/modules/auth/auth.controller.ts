@@ -38,7 +38,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login user' })
   async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    try {
+      return await this.authService.login(loginDto);
+    } catch (error) {
+      console.error('Login error:', error);
+      // Re-throw to let global exception filter handle it
+      throw error;
+    }
   }
 
   @Post('refresh')

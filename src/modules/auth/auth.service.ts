@@ -88,42 +88,107 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const { phone, email, password } = loginDto;
+    try {
+      const { phone, email, password } = loginDto;
 
-    // Determine if identifier is email or phone
-    const identifier = phone || email;
-    if (!identifier) {
-      throw new BadRequestException('Email or phone is required');
+      // Validate password
+      if (!password) {
+        throw new BadRequestException('Password is required');
+      }
+
+      // Determine if identifier is email or phone
+      const identifier = phone || email;
+      if (!identifier) {
+        throw new BadRequestException('Email or phone is required');
+      }
+
+      // Check if identifier is email (contains @) or phone
+      const isEmail = identifier.includes('@');
+      const searchField = isEmail ? 'email' : 'phone';
+
+      let user: any;
+      try {
+        user = await this.firestoreService.findOneBy(
+          'users',
+          searchField,
+          identifier,
+        );
+      } catch (error) {
+        console.error('Error finding user:', error);
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      if (!user) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      if (!user.password) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      if (!user.id) {
+        console.error('User found but missing id field:', user);
+        throw new UnauthorizedException('Invalid user data');
+      }
+
+      // Validate password
+      let isPasswordValid = false;
+      try {
+        isPasswordValid = await bcrypt.compare(password, user.password);
+      } catch (error) {
+        console.error('Error comparing password:', error);
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      // Check if user is active
+      if (user.isActive === false) {
+        throw new UnauthorizedException('Account is inactive');
+      }
+
+      // Update last login
+      try {
+        await this.firestoreService.update('users', user.id, {
+          lastLoginAt: new Date(),
+        });
+      } catch (error) {
+        console.error('Error updating lastLoginAt:', error);
+        // Don't fail login if this update fails
+      }
+
+      // Generate tokens
+      let tokens;
+      try {
+        tokens = await this.generateTokens(user);
+      } catch (error) {
+        console.error('Error generating tokens:', error);
+        throw new BadRequestException('Failed to generate authentication tokens');
+      }
+
+      return {
+        ...tokens,
+        user: this.sanitizeUser(user),
+      };
+    } catch (error) {
+      // Re-throw known exceptions
+      if (
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+      // Log unexpected errors
+      console.error('Unexpected error in login:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      throw new BadRequestException(
+        error instanceof Error 
+          ? `Login failed: ${error.message}` 
+          : 'An error occurred during login. Please try again.'
+      );
     }
-
-    // Check if identifier is email (contains @) or phone
-    const isEmail = identifier.includes('@');
-    const searchField = isEmail ? 'email' : 'phone';
-
-    const user: any = await this.firestoreService.findOneBy(
-      'users',
-      searchField,
-      identifier,
-    );
-
-    if (!user || !user.password) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    await this.firestoreService.update('users', user.id, {
-      lastLoginAt: new Date(),
-    });
-
-    const tokens = await this.generateTokens(user);
-    return {
-      ...tokens,
-      user: this.sanitizeUser(user),
-    };
   }
 
   async validateUser(userId: string): Promise<any> {
@@ -135,24 +200,44 @@ export class AuthService {
   }
 
   async generateTokens(user: any) {
+    if (!user || !user.id) {
+      throw new BadRequestException('Invalid user data for token generation');
+    }
+
     const payload = {
       sub: user.id,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
+      email: user.email || null,
+      phone: user.phone || null,
+      role: user.role || 'buyer',
     };
 
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
+    try {
+      const accessToken = this.jwtService.sign(payload);
+      const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
 
-    await this.firestoreService.update('users', user.id, {
-      refreshToken,
-    });
+      // Update refresh token in database
+      try {
+        await this.firestoreService.update('users', user.id, {
+          refreshToken,
+        });
+      } catch (error) {
+        console.error('Error updating refresh token:', error);
+        // Don't fail token generation if update fails
+      }
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+      return {
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      console.error('Error signing JWT tokens:', error);
+      console.error('Error details:', error instanceof Error ? error.message : JSON.stringify(error));
+      throw new BadRequestException(
+        error instanceof Error 
+          ? `Failed to generate tokens: ${error.message}` 
+          : 'Failed to generate authentication tokens'
+      );
+    }
   }
 
   async refreshToken(refreshToken: string) {
