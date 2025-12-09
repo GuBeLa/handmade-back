@@ -282,6 +282,72 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
+  async googleLogin(googleOAuthDto: { idToken: string; accessToken?: string }) {
+    try {
+      // For mobile apps, we receive idToken directly
+      // We need to verify it with Google's API
+      const { OAuth2Client } = require('google-auth-library');
+      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+      
+      const ticket = await client.verifyIdToken({
+        idToken: googleOAuthDto.idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      
+      const payload = ticket.getPayload();
+      const profile = {
+        id: payload.sub,
+        email: payload.email,
+        firstName: payload.given_name,
+        lastName: payload.family_name,
+        picture: payload.picture,
+      };
+
+      const tokens = await this.validateOAuthUser(profile, 'google');
+      const user: any = await this.firestoreService.findOneBy('users', 'googleId', profile.id);
+      
+      return {
+        ...tokens,
+        user: this.sanitizeUser(user),
+      };
+    } catch (error) {
+      console.error('Google OAuth error:', error);
+      throw new UnauthorizedException('Invalid Google token');
+    }
+  }
+
+  async facebookLogin(facebookOAuthDto: { accessToken: string; userId: string }) {
+    try {
+      // Verify Facebook access token
+      const axios = require('axios').default || require('axios');
+      const response = await axios.get(
+        `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${facebookOAuthDto.accessToken}`
+      );
+      
+      const fbUser = response.data;
+      const nameParts = fbUser.name?.split(' ') || [];
+      
+      const profile = {
+        id: fbUser.id,
+        email: fbUser.email,
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
+        picture: fbUser.picture?.data?.url,
+      };
+
+      const tokens = await this.validateOAuthUser(profile, 'facebook');
+      const user: any = await this.firestoreService.findOneBy('users', 'facebookId', profile.id);
+      
+      return {
+        ...tokens,
+        user: this.sanitizeUser(user),
+      };
+    } catch (error) {
+      console.error('Facebook OAuth error:', error);
+      throw new UnauthorizedException('Invalid Facebook token');
+    }
+  }
+
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
     const { email } = forgotPasswordDto;
 

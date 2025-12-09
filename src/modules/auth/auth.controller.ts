@@ -15,6 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { VerifySmsDto } from './dto/verify-sms.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleOAuthDto, FacebookOAuthDto } from './dto/oauth-login.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Authentication')
@@ -77,11 +78,17 @@ export class AuthController {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
-  @Post('firebase')
-  @ApiOperation({ summary: 'Firebase Auth token verification' })
-  async verifyFirebaseToken(@Body() body: { idToken: string }) {
-    // Verify Firebase ID token and create/update user
-    // This would integrate with Firebase Admin Auth
-    return { message: 'Firebase auth integration' };
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with Google OAuth' })
+  async googleLogin(@Body() googleOAuthDto: GoogleOAuthDto) {
+    return this.authService.googleLogin(googleOAuthDto);
+  }
+
+  @Post('facebook')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with Facebook OAuth' })
+  async facebookLogin(@Body() facebookOAuthDto: FacebookOAuthDto) {
+    return this.authService.facebookLogin(facebookOAuthDto);
   }
 }
