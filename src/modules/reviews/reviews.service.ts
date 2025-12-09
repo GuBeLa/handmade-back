@@ -59,7 +59,22 @@ export class ReviewsService {
 
     // Load user info
     for (const review of reviews) {
-      review.user = await this.firestoreService.findById('users', review.userId);
+      try {
+        if (review.userId) {
+          const user = await this.firestoreService.findById('users', review.userId);
+          review.user = user ? {
+            id: user.id,
+            firstName: user.firstName || null,
+            lastName: user.lastName || null,
+            avatar: user.avatar || null,
+          } : null;
+        } else {
+          review.user = null;
+        }
+      } catch (error) {
+        console.error(`Error loading user for review ${review.id}:`, error);
+        review.user = null;
+      }
     }
 
     return reviews;

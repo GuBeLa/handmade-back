@@ -75,8 +75,35 @@ export class ChatService {
 
     // Load sender and receiver info
     for (const msg of messages) {
-      msg.sender = await this.firestoreService.findById('users', msg.senderId);
-      msg.receiver = await this.firestoreService.findById('users', msg.receiverId);
+      try {
+        if (msg.senderId) {
+          const sender = await this.firestoreService.findById('users', msg.senderId);
+          msg.sender = sender ? {
+            id: sender.id,
+            firstName: sender.firstName || null,
+            lastName: sender.lastName || null,
+            avatar: sender.avatar || null,
+          } : null;
+        } else {
+          msg.sender = null;
+        }
+
+        if (msg.receiverId) {
+          const receiver = await this.firestoreService.findById('users', msg.receiverId);
+          msg.receiver = receiver ? {
+            id: receiver.id,
+            firstName: receiver.firstName || null,
+            lastName: receiver.lastName || null,
+            avatar: receiver.avatar || null,
+          } : null;
+        } else {
+          msg.receiver = null;
+        }
+      } catch (error) {
+        console.error(`Error loading user info for message ${msg.id}:`, error);
+        msg.sender = msg.sender || null;
+        msg.receiver = msg.receiver || null;
+      }
     }
 
     return messages;
@@ -179,11 +206,29 @@ export class ChatService {
 
     // Load sender and receiver info
     for (const msg of allMessages) {
-      if (!msg.sender) {
-        msg.sender = await this.firestoreService.findById('users', msg.senderId);
-      }
-      if (!msg.receiver) {
-        msg.receiver = await this.firestoreService.findById('users', msg.receiverId);
+      try {
+        if (!msg.sender && msg.senderId) {
+          const sender = await this.firestoreService.findById('users', msg.senderId);
+          msg.sender = sender ? {
+            id: sender.id,
+            firstName: sender.firstName || null,
+            lastName: sender.lastName || null,
+            avatar: sender.avatar || null,
+          } : null;
+        }
+        if (!msg.receiver && msg.receiverId) {
+          const receiver = await this.firestoreService.findById('users', msg.receiverId);
+          msg.receiver = receiver ? {
+            id: receiver.id,
+            firstName: receiver.firstName || null,
+            lastName: receiver.lastName || null,
+            avatar: receiver.avatar || null,
+          } : null;
+        }
+      } catch (error) {
+        console.error(`Error loading user info for message ${msg.id}:`, error);
+        msg.sender = msg.sender || null;
+        msg.receiver = msg.receiver || null;
       }
     }
 
