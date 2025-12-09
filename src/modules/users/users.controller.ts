@@ -138,4 +138,5 @@ export class UsersController {
   async getFollowedSellers(@Request() req) {
     return this.usersService.getFollowedSellers(req.user.sub);
   }
+}
 
