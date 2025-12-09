@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { ModerationStatus } from '../../common/enums/moderation-status.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateSellerProfileDto } from './dto/create-seller-profile.dto';
 import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -145,5 +147,35 @@ export class UsersService {
       moderatedBy: moderatorId,
       moderatedAt: new Date(),
     });
+  }
+
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<any> {
+    const user: any = await this.findById(userId);
+
+    if (!user.password) {
+      throw new BadRequestException('User does not have a password set');
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(
+      changePasswordDto.currentPassword,
+      user.password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
+
+    // Update password
+    await this.firestoreService.update('users', userId, {
+      password: hashedPassword,
+    });
+
+    return {
+      message: 'Password changed successfully',
+    };
   }
 }

@@ -17,6 +17,7 @@ import { UserRole } from '../../common/enums/user-role.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateSellerProfileDto } from './dto/create-seller-profile.dto';
 import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -37,6 +38,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user profile' })
   async updateProfile(@Request() req, @Body() updateDto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.sub, updateDto);
+  }
+
+  @Put('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change user password' })
+  async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
+    return this.usersService.changePassword(req.user.sub, changePasswordDto);
   }
 
   @Post('seller-profile')
