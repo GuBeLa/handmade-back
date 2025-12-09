@@ -16,10 +16,11 @@ export class FacebookOAuthDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  idToken: string;
+  accessToken: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty()
   @IsString()
-  accessToken?: string;
+  @IsNotEmpty()
+  userId: string;
 }
 

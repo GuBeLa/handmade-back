@@ -7,7 +7,6 @@ import { SmsService } from './services/sms.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
-import { FirebaseConfig } from '../../config/firebase.config';
 
 @Module({
   imports: [
@@ -33,7 +32,6 @@ import { FirebaseConfig } from '../../config/firebase.config';
   ],
   controllers: [AuthController],
   providers: [
-    FirebaseConfig,
     AuthService,
     JwtStrategy,
     GoogleStrategy,
