@@ -228,6 +228,9 @@ export class FirebaseConfig implements OnModuleInit {
   }
 
   getStorage(): Storage {
+    if (!this.storage) {
+      throw new Error('Storage is not initialized. Check Firebase configuration.');
+    }
     return this.storage;
   }
 
