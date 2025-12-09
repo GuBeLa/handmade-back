@@ -9,6 +9,7 @@ import { LoginDto } from './dto/login.dto';
 import { VerifySmsDto } from './dto/verify-sms.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { FirebaseConfig } from '../../config/firebase.config';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +17,7 @@ export class AuthService {
     private firestoreService: FirestoreService,
     private jwtService: JwtService,
     private smsService: SmsService,
+    private firebaseConfig: FirebaseConfig,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -284,23 +286,17 @@ export class AuthService {
 
   async googleLogin(googleOAuthDto: { idToken: string; accessToken?: string }) {
     try {
-      // For mobile apps, we receive idToken directly
-      // We need to verify it with Google's API
-      const { OAuth2Client } = require('google-auth-library');
-      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+      // Verify Firebase ID token using Firebase Admin SDK
+      const auth = this.firebaseConfig.getAuth();
+      const decodedToken = await auth.verifyIdToken(googleOAuthDto.idToken);
       
-      const ticket = await client.verifyIdToken({
-        idToken: googleOAuthDto.idToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      
-      const payload = ticket.getPayload();
+      // Extract user info from decoded token
       const profile = {
-        id: payload.sub,
-        email: payload.email,
-        firstName: payload.given_name,
-        lastName: payload.family_name,
-        picture: payload.picture,
+        id: decodedToken.uid,
+        email: decodedToken.email || '',
+        firstName: decodedToken.name?.split(' ')[0] || '',
+        lastName: decodedToken.name?.split(' ').slice(1).join(' ') || '',
+        picture: decodedToken.picture || '',
       };
 
       const tokens = await this.validateOAuthUser(profile, 'google');
@@ -312,27 +308,23 @@ export class AuthService {
       };
     } catch (error) {
       console.error('Google OAuth error:', error);
-      throw new UnauthorizedException('Invalid Google token');
+      throw new UnauthorizedException('Invalid Firebase ID token');
     }
   }
 
-  async facebookLogin(facebookOAuthDto: { accessToken: string; userId: string }) {
+  async facebookLogin(facebookOAuthDto: { idToken: string; accessToken?: string }) {
     try {
-      // Verify Facebook access token
-      const axios = require('axios').default || require('axios');
-      const response = await axios.get(
-        `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${facebookOAuthDto.accessToken}`
-      );
+      // Verify Firebase ID token using Firebase Admin SDK
+      const auth = this.firebaseConfig.getAuth();
+      const decodedToken = await auth.verifyIdToken(facebookOAuthDto.idToken);
       
-      const fbUser = response.data;
-      const nameParts = fbUser.name?.split(' ') || [];
-      
+      // Extract user info from decoded token
       const profile = {
-        id: fbUser.id,
-        email: fbUser.email,
-        firstName: nameParts[0] || '',
-        lastName: nameParts.slice(1).join(' ') || '',
-        picture: fbUser.picture?.data?.url,
+        id: decodedToken.uid,
+        email: decodedToken.email || '',
+        firstName: decodedToken.name?.split(' ')[0] || '',
+        lastName: decodedToken.name?.split(' ').slice(1).join(' ') || '',
+        picture: decodedToken.picture || '',
       };
 
       const tokens = await this.validateOAuthUser(profile, 'facebook');
@@ -344,7 +336,7 @@ export class AuthService {
       };
     } catch (error) {
       console.error('Facebook OAuth error:', error);
-      throw new UnauthorizedException('Invalid Facebook token');
+      throw new UnauthorizedException('Invalid Firebase ID token');
     }
   }
 
