@@ -1,25 +1,44 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FirebaseConfig } from '../../config/firebase.config';
 import { getStorage } from 'firebase-admin/storage';
 
 @Injectable()
-export class UploadService {
-  private storage: ReturnType<typeof getStorage>;
+export class UploadService implements OnModuleInit {
+  private storage: ReturnType<typeof getStorage> | null = null;
 
   constructor(
     private configService: ConfigService,
     private firebaseConfig: FirebaseConfig,
-  ) {
+  ) {}
+
+  onModuleInit() {
+    // Initialize Storage after Firebase is ready
     try {
       this.storage = this.firebaseConfig.getStorage();
       if (!this.storage) {
-        throw new Error('Firebase Storage is not initialized');
+        console.warn('⚠️ Firebase Storage is not initialized yet. Will retry on first use.');
+      } else {
+        console.log('✅ UploadService: Storage initialized successfully');
       }
     } catch (error) {
-      console.error('❌ Failed to initialize Storage in UploadService:', error);
-      throw new Error(`Failed to initialize Storage: ${error.message}`);
+      console.warn('⚠️ Failed to initialize Storage in UploadService onModuleInit:', error.message);
+      // Don't throw - will retry on first use
     }
+  }
+
+  private getStorageInstance(): ReturnType<typeof getStorage> {
+    if (!this.storage) {
+      try {
+        this.storage = this.firebaseConfig.getStorage();
+        if (!this.storage) {
+          throw new Error('Firebase Storage is not initialized');
+        }
+      } catch (error) {
+        throw new Error(`Firebase Storage is not initialized. Please check Firebase configuration: ${error.message}`);
+      }
+    }
+    return this.storage;
   }
 
   async uploadFile(file: Express.Multer.File, folder?: string): Promise<string> {
@@ -30,12 +49,10 @@ export class UploadService {
     file: Express.Multer.File,
     folder?: string,
   ): Promise<string> {
-    if (!this.storage) {
-      throw new Error('Firebase Storage is not initialized. Please check Firebase configuration.');
-    }
+    const storage = this.getStorageInstance();
 
     try {
-      const bucket = this.storage.bucket();
+      const bucket = storage.bucket();
       if (!bucket) {
         throw new Error('Failed to get storage bucket. Please check Firebase Storage configuration.');
       }
@@ -73,12 +90,10 @@ export class UploadService {
   }
 
   async deleteFile(url: string): Promise<void> {
-    if (!this.storage) {
-      throw new Error('Firebase Storage is not initialized. Please check Firebase configuration.');
-    }
+    const storage = this.getStorageInstance();
 
     try {
-      const bucket = this.storage.bucket();
+      const bucket = storage.bucket();
       if (!bucket) {
         throw new Error('Failed to get storage bucket. Please check Firebase Storage configuration.');
       }

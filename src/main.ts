@@ -93,6 +93,22 @@ async function bootstrap() {
     }),
   );
 
+  // Add root path handler BEFORE setting global prefix
+  app.use('/', (req, res, next) => {
+    if (req.path === '/' && req.method === 'GET') {
+      return res.json({
+        message: 'Handmade Marketplace API',
+        version: '1.0.0',
+        apiBaseUrl: '/api',
+        documentation: '/api/docs',
+        health: '/api/health',
+        timestamp: new Date().toISOString(),
+        note: 'This API uses /api prefix. Use /api/* for all endpoints.',
+      });
+    }
+    next();
+  });
+
   // API prefix
   app.setGlobalPrefix('api');
 
