@@ -5,6 +5,8 @@ import { ModerationStatus } from '../../common/enums/moderation-status.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateSellerProfileDto } from './dto/create-seller-profile.dto';
 import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
+import { CreateAddressDto } from './dto/create-address.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -362,5 +364,68 @@ export class UsersService {
       ...profile,
       isFollowing: false,
     };
+  }
+
+  // Address Management
+  async createAddress(userId: string, createDto: CreateAddressDto): Promise<any> {
+    // If this is set as default, unset other default addresses
+    if (createDto.isDefault) {
+      const existingAddresses = await this.firestoreService.findAll('user_addresses', (ref) =>
+        ref.where('userId', '==', userId),
+      );
+      for (const addr of existingAddresses) {
+        if (addr.isDefault) {
+          await this.firestoreService.update('user_addresses', addr.id, { isDefault: false });
+        }
+      }
+    }
+
+    return this.firestoreService.create('user_addresses', {
+      ...createDto,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  async getAddresses(userId: string): Promise<any[]> {
+    const addresses = await this.firestoreService.findAll('user_addresses', (ref) =>
+      ref.where('userId', '==', userId).orderBy('isDefault', 'desc').orderBy('createdAt', 'desc'),
+    );
+    return addresses;
+  }
+
+  async getAddress(userId: string, addressId: string): Promise<any> {
+    const address: any = await this.firestoreService.findById('user_addresses', addressId);
+    if (!address || address.userId !== userId) {
+      throw new NotFoundException('Address not found');
+    }
+    return address;
+  }
+
+  async updateAddress(userId: string, addressId: string, updateDto: UpdateAddressDto): Promise<any> {
+    const address: any = await this.getAddress(userId, addressId);
+
+    // If setting as default, unset other default addresses
+    if (updateDto.isDefault === true) {
+      const existingAddresses = await this.firestoreService.findAll('user_addresses', (ref) =>
+        ref.where('userId', '==', userId),
+      );
+      for (const addr of existingAddresses) {
+        if (addr.id !== addressId && addr.isDefault) {
+          await this.firestoreService.update('user_addresses', addr.id, { isDefault: false });
+        }
+      }
+    }
+
+    return this.firestoreService.update('user_addresses', addressId, {
+      ...updateDto,
+      updatedAt: new Date(),
+    });
+  }
+
+  async deleteAddress(userId: string, addressId: string): Promise<void> {
+    await this.getAddress(userId, addressId); // Verify ownership
+    await this.firestoreService.delete('user_addresses', addressId);
   }
 }

@@ -785,7 +785,7 @@ async function clearDatabase(db: Firestore) {
   console.log(`✅ Deleted ${userCount} users (kept admin users)`);
   
   // Delete all seller profiles
-  const sellerProfilesSnapshot = await db.collection('sellerProfiles').get();
+  const sellerProfilesSnapshot = await db.collection('seller_profiles').get();
   const sellerProfileDeletes = sellerProfilesSnapshot.docs.map(doc => doc.ref.delete());
   await Promise.all(sellerProfileDeletes);
   console.log(`✅ Deleted ${sellerProfilesSnapshot.size} seller profiles\n`);
@@ -853,7 +853,7 @@ async function seedUsers(db: Firestore) {
       // Create seller profile if seller
       if (userData.role === UserRole.SELLER && (userData as any).shopName) {
         const sellerData = userData as any;
-        const sellerProfileRef = db.collection('sellerProfiles').doc();
+        const sellerProfileRef = db.collection('seller_profiles').doc();
         await sellerProfileRef.set({
           userId: userRef.id,
           shopName: sellerData.shopName,

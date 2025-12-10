@@ -3,6 +3,7 @@ import {
   Get,
   Put,
   Post,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -17,6 +18,8 @@ import { UserRole } from '../../common/enums/user-role.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateSellerProfileDto } from './dto/create-seller-profile.dto';
 import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
+import { CreateAddressDto } from './dto/create-address.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Users')
@@ -161,6 +164,52 @@ export class UsersController {
   @ApiOperation({ summary: 'Get list of followed sellers' })
   async getFollowedSellers(@Request() req) {
     return this.usersService.getFollowedSellers(req.user.sub);
+  }
+
+  // Address Management
+  @Post('addresses')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new delivery address' })
+  async createAddress(@Request() req, @Body() createDto: CreateAddressDto) {
+    return this.usersService.createAddress(req.user.sub, createDto);
+  }
+
+  @Get('addresses')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all user addresses' })
+  async getAddresses(@Request() req) {
+    return this.usersService.getAddresses(req.user.sub);
+  }
+
+  @Get('addresses/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get address by ID' })
+  async getAddress(@Request() req, @Param('id') id: string) {
+    return this.usersService.getAddress(req.user.sub, id);
+  }
+
+  @Put('addresses/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update address' })
+  async updateAddress(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() updateDto: UpdateAddressDto,
+  ) {
+    return this.usersService.updateAddress(req.user.sub, id, updateDto);
+  }
+
+  @Delete('addresses/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete address' })
+  async deleteAddress(@Request() req, @Param('id') id: string) {
+    await this.usersService.deleteAddress(req.user.sub, id);
+    return { message: 'Address deleted successfully' };
   }
 }
 
