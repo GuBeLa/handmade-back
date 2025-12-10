@@ -1,7 +1,7 @@
 {
-  "name": "handmade-marketplace-backend",
+  "name": "arteli-backend",
   "version": "1.0.0",
-  "description": "Backend API for Handmade Marketplace",
+  "description": "Backend API for arteli",
   "author": "",
   "private": true,
   "license": "MIT",
@@ -18,6 +18,7 @@
     "test:cov": "jest --coverage",
     "seed:users": "ts-node -r tsconfig-paths/register src/scripts/seed-users.ts",
     "seed:products": "ts-node -r tsconfig-paths/register src/scripts/seed-products.ts",
+    "seed:orders": "ts-node -r tsconfig-paths/register src/scripts/seed-orders.ts",
     "seed:all": "ts-node -r tsconfig-paths/register src/scripts/seed-all.ts",
     "seed:comprehensive": "ts-node -r tsconfig-paths/register src/scripts/seed-comprehensive.ts",
     "generate:jwt-secret": "node generate-jwt-secret.js"

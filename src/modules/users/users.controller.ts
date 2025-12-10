@@ -106,6 +106,30 @@ export class UsersController {
     );
   }
 
+  @Post('seller-profiles/:id/verify')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify seller profile (Admin only)' })
+  async verifySellerProfile(
+    @Param('id') profileId: string,
+    @Request() req,
+  ) {
+    return this.usersService.verifySellerProfile(profileId, req.user.sub);
+  }
+
+  @Post('seller-profiles/:id/unverify')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unverify seller profile (Admin only)' })
+  async unverifySellerProfile(
+    @Param('id') profileId: string,
+    @Request() req,
+  ) {
+    return this.usersService.unverifySellerProfile(profileId, req.user.sub);
+  }
+
   @Post('sellers/:id/follow')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

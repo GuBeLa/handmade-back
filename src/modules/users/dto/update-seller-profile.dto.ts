@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsUrl } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsUrl, IsEmail, IsArray, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateSellerProfileDto {
@@ -59,6 +59,16 @@ export class UpdateSellerProfileDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsUrl()
   facebookUrl?: string;
 
@@ -75,5 +85,11 @@ export class UpdateSellerProfileDto {
   @ApiProperty({ required: false })
   @IsOptional()
   workingHours?: any;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categories?: string[];
 }
 

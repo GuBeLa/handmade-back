@@ -38,9 +38,8 @@ export class UsersService {
   ): Promise<any> {
     const user: any = await this.findById(userId);
 
-    if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
-      throw new BadRequestException('User must be a seller');
-    }
+    // Allow any user (buyer or seller) to create seller profile
+    // This enables "Become a Seller" functionality
 
     const existingProfile = await this.firestoreService.findOneBy(
       'seller_profiles',
@@ -56,12 +55,15 @@ export class UsersService {
       ...createDto,
       userId,
       moderationStatus: ModerationStatus.PENDING,
+      isVerified: false,
     });
 
-    // Update user role
-    await this.firestoreService.update('users', userId, {
-      role: UserRole.SELLER,
-    });
+    // Update user role to SELLER if not already
+    if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
+      await this.firestoreService.update('users', userId, {
+        role: UserRole.SELLER,
+      });
+    }
 
     return profile;
   }
@@ -160,6 +162,34 @@ export class UsersService {
       moderationComment: comment,
       moderatedBy: moderatorId,
       moderatedAt: new Date(),
+    });
+  }
+
+  async verifySellerProfile(profileId: string, adminId: string): Promise<any> {
+    const profile: any = await this.firestoreService.findById('seller_profiles', profileId);
+
+    if (!profile) {
+      throw new NotFoundException('Seller profile not found');
+    }
+
+    return this.firestoreService.update('seller_profiles', profileId, {
+      isVerified: true,
+      verifiedBy: adminId,
+      verifiedAt: new Date(),
+    });
+  }
+
+  async unverifySellerProfile(profileId: string, adminId: string): Promise<any> {
+    const profile: any = await this.firestoreService.findById('seller_profiles', profileId);
+
+    if (!profile) {
+      throw new NotFoundException('Seller profile not found');
+    }
+
+    return this.firestoreService.update('seller_profiles', profileId, {
+      isVerified: false,
+      verifiedBy: adminId,
+      verifiedAt: new Date(),
     });
   }
 

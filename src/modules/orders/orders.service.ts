@@ -197,6 +197,7 @@ export class OrdersService {
     }
 
     if (
+      method === DeliveryMethod.COURIER ||
       method === DeliveryMethod.COURIER_TBILISI ||
       method === DeliveryMethod.COURIER_BATUMI ||
       method === DeliveryMethod.COURIER_KUTAISI

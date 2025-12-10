@@ -42,7 +42,11 @@ export interface SellerProfile {
   email?: string;
   website?: string;
   socialMedia?: any;
+  categories?: string[];
   isActive: boolean;
+  isVerified?: boolean;
+  verifiedAt?: Date;
+  verifiedBy?: string;
   moderationStatus: 'pending' | 'approved' | 'rejected';
   moderationComment?: string;
   moderatedBy?: string;

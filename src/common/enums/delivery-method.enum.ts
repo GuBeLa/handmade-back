@@ -1,4 +1,5 @@
 export enum DeliveryMethod {
+  COURIER = 'courier',
   COURIER_TBILISI = 'courier_tbilisi',
   COURIER_BATUMI = 'courier_batumi',
   COURIER_KUTAISI = 'courier_kutaisi',

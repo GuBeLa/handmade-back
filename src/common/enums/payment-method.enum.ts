@@ -1,4 +1,5 @@
 export enum PaymentMethod {
+  PAYZE = 'payze',
   TBC_PAY = 'tbc_pay',
   LIBERTY_PAY = 'liberty_pay',
   BOG_PAY = 'bog_pay',

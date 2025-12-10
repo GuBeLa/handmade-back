@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsUrl } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsUrl, IsEmail, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateSellerProfileDto {
@@ -52,6 +52,16 @@ export class CreateSellerProfileDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsUrl()
   facebookUrl?: string;
 
@@ -68,5 +78,22 @@ export class CreateSellerProfileDto {
   @ApiProperty({ required: false })
   @IsOptional()
   workingHours?: any;
+
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  categories: string[];
+
+  @ApiProperty()
+  @IsString()
+  paymentDetails: string;
+
+  @ApiProperty()
+  @IsString()
+  deliveryPolicy: string;
+
+  @ApiProperty()
+  @IsString()
+  returnPolicy: string;
 }
 
