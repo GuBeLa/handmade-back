@@ -36,16 +36,24 @@ export class OrdersService {
       const itemTotal = price * item.quantity;
       subtotal += itemTotal;
 
-      orderItems.push({
+      const orderItem: any = {
         productId: product.id,
         productTitle: product.title,
         productImage: product.images?.[0]?.url,
         price,
         quantity: item.quantity,
         total: itemTotal,
-        variantSize: item.variantSize,
-        variantColor: item.variantColor,
-      });
+      };
+
+      // Only add variant fields if they exist
+      if (item.variantSize) {
+        orderItem.variantSize = item.variantSize;
+      }
+      if (item.variantColor) {
+        orderItem.variantColor = item.variantColor;
+      }
+
+      orderItems.push(orderItem);
 
       // Update product stock
       await this.firestoreService.update('products', product.id, {
