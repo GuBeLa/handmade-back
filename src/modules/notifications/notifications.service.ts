@@ -7,7 +7,12 @@ export class NotificationsService {
   constructor(private firestoreService: FirestoreService) {}
 
   async create(createDto: CreateNotificationDto): Promise<any> {
-    return this.firestoreService.create('notifications', createDto);
+    return this.firestoreService.create('notifications', {
+      ...createDto,
+      isRead: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 
   async getUserNotifications(userId: string): Promise<any[]> {

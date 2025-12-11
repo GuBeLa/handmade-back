@@ -8,11 +8,15 @@ import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
-  constructor(private firestoreService: FirestoreService) {}
+  constructor(
+    private firestoreService: FirestoreService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async findById(id: string): Promise<any> {
     const user: any = await this.firestoreService.findById('users', id);
@@ -269,6 +273,23 @@ export class UsersService {
         followersCount: currentFollowers + 1,
       });
     }
+
+    // Send notification to seller
+    const buyer: any = await this.findById(userId);
+    const buyerName = buyer?.firstName && buyer?.lastName 
+      ? `${buyer.firstName} ${buyer.lastName}` 
+      : buyer?.email || 'Someone';
+    
+    await this.notificationsService.create({
+      userId: sellerId,
+      type: 'follow',
+      title: 'New Follower',
+      message: `${buyerName} started following your shop`,
+      link: `/sellers/${sellerId}`,
+      isRead: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     return {
       message: 'Successfully followed seller',

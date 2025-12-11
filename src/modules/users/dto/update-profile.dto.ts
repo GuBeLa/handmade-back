@@ -21,5 +21,10 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   avatar?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  pushToken?: string;
 }
 

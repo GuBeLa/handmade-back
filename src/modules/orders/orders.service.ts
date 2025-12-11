@@ -91,14 +91,40 @@ export class OrdersService {
       isPaid: paymentMethod.includes('cod') ? false : true,
     });
 
-    // Send notification
+    // Send notification to buyer
     await this.notificationsService.create({
       userId: buyerId,
       type: 'order',
       title: 'Order Placed',
       message: `Your order #${orderNumber} has been placed successfully`,
       link: `/orders/${order.id}`,
+      isRead: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+
+    // Send notification to seller(s) - get unique seller IDs from order items
+    const sellerIds = new Set<string>();
+    for (const item of orderItems) {
+      const product: any = await this.firestoreService.findById('products', item.productId);
+      if (product?.sellerId) {
+        sellerIds.add(product.sellerId);
+      }
+    }
+
+    // Send notification to each seller
+    for (const sellerId of sellerIds) {
+      await this.notificationsService.create({
+        userId: sellerId,
+        type: 'order',
+        title: 'New Order',
+        message: `You have a new order #${orderNumber}`,
+        link: `/orders/${order.id}`,
+        isRead: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
 
     return this.findOne(order.id);
   }
@@ -187,14 +213,40 @@ export class OrdersService {
 
     await this.firestoreService.update('orders', id, updateData);
 
-    // Send notification
+    // Send notification to buyer
     await this.notificationsService.create({
       userId: order.buyerId,
       type: 'order',
       title: 'Order Status Updated',
       message: `Your order #${order.orderNumber} status has been updated to ${status}`,
       link: `/orders/${order.id}`,
+      isRead: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
+
+    // Send notification to seller(s) - get unique seller IDs from order items
+    const sellerIds = new Set<string>();
+    for (const item of order.items || []) {
+      const product: any = await this.firestoreService.findById('products', item.productId);
+      if (product?.sellerId) {
+        sellerIds.add(product.sellerId);
+      }
+    }
+
+    // Send notification to each seller
+    for (const sellerId of sellerIds) {
+      await this.notificationsService.create({
+        userId: sellerId,
+        type: 'order',
+        title: 'Order Status Updated',
+        message: `Order #${order.orderNumber} status has been updated to ${status}`,
+        link: `/orders/${order.id}`,
+        isRead: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
 
     return this.findOne(id);
   }
