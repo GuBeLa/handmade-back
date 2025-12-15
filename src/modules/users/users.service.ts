@@ -286,9 +286,6 @@ export class UsersService {
       title: 'New Follower',
       message: `${buyerName} started following your shop`,
       link: `/sellers/${sellerId}`,
-      isRead: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
 
     return {

@@ -15,10 +15,13 @@ async function bootstrap() {
   // Global exception filter for better error handling
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // Enable CORS with flexible origin handling for development
+  // Enable CORS with flexible origin handling for development and web shop
   const allowedOrigins = [
     process.env.FRONTEND_URL,
     process.env.ADMIN_URL,
+    process.env.SHOP_URL, // Web shop (Next.js) URL
+    'http://localhost:3000', // Next.js dev (default)
+    'http://localhost:3002', // Next.js dev (shop current port)
     'http://localhost:3006',
     'http://localhost:3007',
     'http://localhost:8081', // Expo web
