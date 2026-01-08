@@ -164,8 +164,22 @@ export class RecommendationsService {
 
       // Category match (high weight)
       if (preferences.categories.length > 0) {
+        // Check if product categoryId matches
         if (preferences.categories.includes(product.categoryId)) {
           score += 30;
+        } else {
+          // Also check if category name matches in product title/description
+          const productText = `${product.title || ''} ${product.description || ''}`.toLowerCase();
+          const categoryMatch = preferences.categories.some((cat: string) => {
+            // If cat is a category name (string), check in product text
+            if (typeof cat === 'string' && cat.length > 3) {
+              return productText.includes(cat.toLowerCase());
+            }
+            return false;
+          });
+          if (categoryMatch) {
+            score += 20; // Lower score for keyword match vs exact category match
+          }
         }
       } else {
         // If no category preference, give base score
@@ -268,7 +282,7 @@ export class RecommendationsService {
   ): Promise<{ products: any[]; total: number; reasoning?: string }> {
     try {
       // Parse natural language text to extract preferences
-      const preferences = this.parseNaturalLanguage(textDto.text);
+      const preferences = await this.parseNaturalLanguage(textDto.text);
       
       // Get all approved products
       const allProducts = await this.firestoreService.findAll('products');
@@ -311,7 +325,7 @@ export class RecommendationsService {
   /**
    * Parse natural language text to extract preferences
    */
-  private parseNaturalLanguage(text: string): any {
+  private async parseNaturalLanguage(text: string): Promise<any> {
     const lowerText = text.toLowerCase();
     const preferences: any = {
       categories: [],
@@ -374,40 +388,58 @@ export class RecommendationsService {
       }
     }
 
-    // Extract categories
+    // Extract categories - match by name in database
     const categoryKeywords: { [key: string]: string[] } = {
-      'სამკაულები': ['სამკაული', 'jewelry', 'სამკაულები', 'ბეჭედი', 'ring', 'ყელსაბამი', 'necklace'],
-      'ტანსაცმელი': ['ტანსაცმელი', 'clothing', 'კაბა', 'dress', 'პერანგი', 'shirt'],
-      'აქსესუარები': ['აქსესუარი', 'accessory', 'ჩანთა', 'bag', 'ქამარი', 'belt'],
-      'სახლის დეკორი': ['დეკორი', 'decoration', 'დეკორაცია', 'ვაზა', 'vase'],
-      'ხელნაკეთი ნივთები': ['ხელნაკეთი', 'handmade', 'ხელნაკეთობა'],
+      'სამკაულები': ['სამკაული', 'jewelry', 'სამკაულები', 'ბეჭედი', 'ring', 'ყელსაბამი', 'necklace', 'bracelet', 'ბრასლეტი'],
+      'ტანსაცმელი': ['ტანსაცმელი', 'clothing', 'კაბა', 'dress', 'პერანგი', 'shirt', 'პერანგი', 'ქურთუკი', 'jacket'],
+      'აქსესუარები': ['აქსესუარი', 'accessory', 'ჩანთა', 'bag', 'ქამარი', 'belt', 'ქამარი', 'wallet', 'საფულე'],
+      'სახლის დეკორი': ['დეკორი', 'decoration', 'დეკორაცია', 'ვაზა', 'vase', 'დეკორაცია', 'home decor'],
+      'ხელნაკეთი ნივთები': ['ხელნაკეთი', 'handmade', 'ხელნაკეთობა', 'craft'],
     };
 
-    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+    // Get all categories to match by name
+    const allCategories = await this.firestoreService.findAll('categories');
+    
+    for (const [categoryName, keywords] of Object.entries(categoryKeywords)) {
       if (keywords.some(keyword => lowerText.includes(keyword))) {
-        preferences.categories.push(category);
+        // Find category by name (check both name and nameEn fields)
+        const matchedCategory = allCategories.find(
+          (cat: any) =>
+            cat.name?.toLowerCase().includes(categoryName.toLowerCase()) ||
+            cat.nameEn?.toLowerCase().includes(categoryName.toLowerCase()) ||
+            categoryName.toLowerCase().includes(cat.name?.toLowerCase() || '') ||
+            categoryName.toLowerCase().includes(cat.nameEn?.toLowerCase() || '')
+        );
+        
+        if (matchedCategory) {
+          preferences.categories.push(matchedCategory.id);
+        } else {
+          // If no exact match, add category name for keyword matching in product titles
+          preferences.categories.push(categoryName);
+        }
       }
     }
 
-    // Extract occasions
-    if (lowerText.includes('საჩუქარი') || lowerText.includes('gift') || lowerText.includes('present')) {
+    // Extract occasions and target audience
+    if (lowerText.includes('საჩუქარი') || lowerText.includes('gift') || lowerText.includes('present') || lowerText.includes('საჩუქარ')) {
       preferences.occasions.push('საჩუქარი');
+      preferences.keywords.push('საჩუქარი');
     }
-    if (lowerText.includes('ბიჭისთვის') || lowerText.includes('for boy') || lowerText.includes('for man')) {
-      preferences.occasions.push('ბიჭისთვის');
-      preferences.keywords.push('ბიჭისთვის');
-    }
-    if (lowerText.includes('გოგოსთვის') || lowerText.includes('for girl') || lowerText.includes('for woman')) {
-      preferences.occasions.push('გოგოსთვის');
-      preferences.keywords.push('გოგოსთვის');
-    }
-    if (lowerText.includes('ქალისთვის') || lowerText.includes('for woman') || lowerText.includes('for female')) {
-      preferences.occasions.push('ქალისთვის');
-      preferences.keywords.push('ქალისთვის');
-    }
-    if (lowerText.includes('კაცისთვის') || lowerText.includes('for man') || lowerText.includes('for male')) {
-      preferences.occasions.push('კაცისთვის');
-      preferences.keywords.push('კაცისთვის');
+    
+    // Target audience keywords
+    const targetKeywords = [
+      { keywords: ['ბიჭისთვის', 'for boy', 'for man', 'ბიჭის', 'კაცისთვის', 'კაცის', 'male'], target: 'ბიჭისთვის' },
+      { keywords: ['გოგოსთვის', 'for girl', 'for woman', 'გოგოს', 'ქალისთვის', 'ქალის', 'female'], target: 'ქალისთვის' },
+      { keywords: ['ბავშვისთვის', 'for child', 'for kid', 'ბავშვის', 'children'], target: 'ბავშვისთვის' },
+      { keywords: ['ოჯახისთვის', 'for family', 'family'], target: 'ოჯახისთვის' },
+    ];
+
+    for (const { keywords, target } of targetKeywords) {
+      if (keywords.some(keyword => lowerText.includes(keyword))) {
+        preferences.occasions.push(target);
+        preferences.keywords.push(target);
+        break; // Only one target audience
+      }
     }
 
     // Extract colors
