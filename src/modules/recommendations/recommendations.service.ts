@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { ProductsService } from '../products/products.service';
 import { SubmitQuestionnaireDto } from './dto/questionnaire.dto';
+import { TextRecommendationRequestDto } from './dto/text-request.dto';
 import { ModerationStatus } from '../../common/enums/moderation-status.enum';
 
 @Injectable()
@@ -195,6 +196,16 @@ export class RecommendationsService {
         }
       }
 
+      // Keyword match in title/description (high weight for text-based search)
+      if (preferences.keywords && preferences.keywords.length > 0) {
+        const productText = `${product.title || ''} ${product.description || ''}`.toLowerCase();
+        preferences.keywords.forEach((keyword: string) => {
+          if (productText.includes(keyword.toLowerCase())) {
+            score += 20; // High weight for keyword matches
+          }
+        });
+      }
+
       // Rating boost (medium weight)
       if (product.averageRating) {
         score += product.averageRating * 5; // 0-25 points for rating
@@ -239,6 +250,231 @@ export class RecommendationsService {
 
     if (preferences.materials.length > 0) {
       reasons.push(`მასალა: ${preferences.materials.join(', ')}`);
+    }
+
+    if (products.length > 0) {
+      reasons.push(`ნაპოვნია ${products.length} რეკომენდაცია`);
+    }
+
+    return reasons.join(' | ') || 'პერსონალიზებული რეკომენდაციები';
+  }
+
+  /**
+   * Get recommendations based on natural language text input
+   */
+  async getRecommendationsFromText(
+    textDto: TextRecommendationRequestDto,
+    userId?: string,
+  ): Promise<{ products: any[]; total: number; reasoning?: string }> {
+    try {
+      // Parse natural language text to extract preferences
+      const preferences = this.parseNaturalLanguage(textDto.text);
+      
+      // Get all approved products
+      const allProducts = await this.firestoreService.findAll('products');
+      const approvedProducts = allProducts.filter(
+        (p: any) =>
+          p.isActive === true &&
+          p.moderationStatus === ModerationStatus.APPROVED,
+      );
+
+      if (approvedProducts.length === 0) {
+        return { products: [], total: 0 };
+      }
+
+      // Score products based on preferences
+      const scoredProducts = this.scoreProducts(approvedProducts, preferences);
+
+      // Sort by score (highest first)
+      scoredProducts.sort((a, b) => b.score - a.score);
+
+      // Get top recommendations
+      const limit = textDto.limit || 20;
+      const recommendedProducts = scoredProducts
+        .slice(0, limit)
+        .map((item) => item.product);
+
+      // Generate reasoning
+      const reasoning = this.generateReasoningFromText(textDto.text, preferences, recommendedProducts);
+
+      return {
+        products: recommendedProducts,
+        total: recommendedProducts.length,
+        reasoning,
+      };
+    } catch (error) {
+      this.logger.error('Error getting recommendations from text:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Parse natural language text to extract preferences
+   */
+  private parseNaturalLanguage(text: string): any {
+    const lowerText = text.toLowerCase();
+    const preferences: any = {
+      categories: [],
+      priceRange: { min: 0, max: Infinity },
+      materials: [],
+      styles: [],
+      occasions: [],
+      colors: [],
+      budget: 'medium',
+      keywords: [],
+    };
+
+    // Extract price/budget
+    const pricePatterns = [
+      /ბიუჯეტი\s*(\d+)/i,
+      /(\d+)\s*ლარი/i,
+      /(\d+)\s*₾/i,
+      /(\d+)\s*gel/i,
+      /(\d+)\s*ლარამდე/i,
+      /(\d+)\s*ლარის/i,
+      /(\d+)\s*ლარამდე/i,
+      /(\d+)\s*ლარის/i,
+    ];
+
+    for (const pattern of pricePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const price = parseInt(match[1], 10);
+        if (price > 0) {
+          preferences.priceRange = { min: 0, max: price * 1.2 }; // Allow 20% over budget
+          if (price <= 50) {
+            preferences.budget = 'low';
+          } else if (price <= 150) {
+            preferences.budget = 'medium';
+          } else {
+            preferences.budget = 'high';
+          }
+          break;
+        }
+      }
+    }
+
+    // Extract materials
+    const materialKeywords: { [key: string]: string[] } = {
+      'ტყავი': ['ტყავი', 'leather', 'ტყავის'],
+      'ხე': ['ხე', 'wood', 'ხის', 'ხისგან'],
+      'ლითონი': ['ლითონი', 'metal', 'ლითონის', 'ლითონისგან'],
+      'ქსოვილი': ['ქსოვილი', 'fabric', 'ტექსტილი', 'textile', 'ქსოვილის'],
+      'კერამიკა': ['კერამიკა', 'ceramic', 'კერამიკის'],
+      'მინა': ['მინა', 'glass', 'მინის'],
+      'ქვა': ['ქვა', 'stone', 'ქვის'],
+      'პლასტმასი': ['პლასტმასი', 'plastic', 'პლასტმასის'],
+      'ბამბა': ['ბამბა', 'cotton', 'ბამბის'],
+      'ბამბუკი': ['ბამბუკი', 'bamboo', 'ბამბუკის'],
+    };
+
+    for (const [material, keywords] of Object.entries(materialKeywords)) {
+      if (keywords.some(keyword => lowerText.includes(keyword))) {
+        preferences.materials.push(material);
+      }
+    }
+
+    // Extract categories
+    const categoryKeywords: { [key: string]: string[] } = {
+      'სამკაულები': ['სამკაული', 'jewelry', 'სამკაულები', 'ბეჭედი', 'ring', 'ყელსაბამი', 'necklace'],
+      'ტანსაცმელი': ['ტანსაცმელი', 'clothing', 'კაბა', 'dress', 'პერანგი', 'shirt'],
+      'აქსესუარები': ['აქსესუარი', 'accessory', 'ჩანთა', 'bag', 'ქამარი', 'belt'],
+      'სახლის დეკორი': ['დეკორი', 'decoration', 'დეკორაცია', 'ვაზა', 'vase'],
+      'ხელნაკეთი ნივთები': ['ხელნაკეთი', 'handmade', 'ხელნაკეთობა'],
+    };
+
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(keyword => lowerText.includes(keyword))) {
+        preferences.categories.push(category);
+      }
+    }
+
+    // Extract occasions
+    if (lowerText.includes('საჩუქარი') || lowerText.includes('gift') || lowerText.includes('present')) {
+      preferences.occasions.push('საჩუქარი');
+    }
+    if (lowerText.includes('ბიჭისთვის') || lowerText.includes('for boy') || lowerText.includes('for man')) {
+      preferences.occasions.push('ბიჭისთვის');
+      preferences.keywords.push('ბიჭისთვის');
+    }
+    if (lowerText.includes('გოგოსთვის') || lowerText.includes('for girl') || lowerText.includes('for woman')) {
+      preferences.occasions.push('გოგოსთვის');
+      preferences.keywords.push('გოგოსთვის');
+    }
+    if (lowerText.includes('ქალისთვის') || lowerText.includes('for woman') || lowerText.includes('for female')) {
+      preferences.occasions.push('ქალისთვის');
+      preferences.keywords.push('ქალისთვის');
+    }
+    if (lowerText.includes('კაცისთვის') || lowerText.includes('for man') || lowerText.includes('for male')) {
+      preferences.occasions.push('კაცისთვის');
+      preferences.keywords.push('კაცისთვის');
+    }
+
+    // Extract colors
+    const colorKeywords: { [key: string]: string[] } = {
+      'შავი': ['შავი', 'black'],
+      'თეთრი': ['თეთრი', 'white'],
+      'წითელი': ['წითელი', 'red'],
+      'ლურჯი': ['ლურჯი', 'blue'],
+      'მწვანე': ['მწვანე', 'green'],
+      'ყვითელი': ['ყვითელი', 'yellow'],
+      'ნარინჯისფერი': ['ნარინჯისფერი', 'orange'],
+      'იისფერი': ['იისფერი', 'purple'],
+      'ვარდისფერი': ['ვარდისფერი', 'pink'],
+      'ნაცრისფერი': ['ნაცრისფერი', 'gray', 'grey'],
+      'ყავისფერი': ['ყავისფერი', 'brown'],
+    };
+
+    for (const [color, keywords] of Object.entries(colorKeywords)) {
+      if (keywords.some(keyword => lowerText.includes(keyword))) {
+        preferences.colors.push(color);
+      }
+    }
+
+    // Extract style keywords
+    if (lowerText.includes('კლასიკური') || lowerText.includes('classic')) {
+      preferences.styles.push('კლასიკური');
+    }
+    if (lowerText.includes('თანამედროვე') || lowerText.includes('modern')) {
+      preferences.styles.push('თანამედროვე');
+    }
+    if (lowerText.includes('ვინტაჟი') || lowerText.includes('vintage')) {
+      preferences.styles.push('ვინტაჟი');
+    }
+    if (lowerText.includes('მინიმალისტური') || lowerText.includes('minimal')) {
+      preferences.styles.push('მინიმალისტური');
+    }
+
+    return preferences;
+  }
+
+  /**
+   * Generate reasoning from natural language text
+   */
+  private generateReasoningFromText(
+    originalText: string,
+    preferences: any,
+    products: any[],
+  ): string {
+    const reasons: string[] = [];
+
+    // Add original request
+    reasons.push(`მოთხოვნა: "${originalText}"`);
+
+    if (preferences.materials.length > 0) {
+      reasons.push(`მასალა: ${preferences.materials.join(', ')}`);
+    }
+
+    if (preferences.categories.length > 0) {
+      reasons.push(`კატეგორია: ${preferences.categories.join(', ')}`);
+    }
+
+    if (preferences.priceRange.max < Infinity) {
+      reasons.push(`ბიუჯეტი: ${preferences.priceRange.max.toFixed(0)}₾-მდე`);
+    }
+
+    if (preferences.occasions.length > 0) {
+      reasons.push(`დანიშნულება: ${preferences.occasions.join(', ')}`);
     }
 
     if (products.length > 0) {

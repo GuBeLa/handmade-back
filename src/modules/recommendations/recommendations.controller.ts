@@ -9,6 +9,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { RecommendationsService } from './recommendations.service';
 import { SubmitQuestionnaireDto } from './dto/questionnaire.dto';
+import { TextRecommendationRequestDto } from './dto/text-request.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Recommendations')
@@ -42,6 +43,26 @@ export class RecommendationsController {
   ) {
     return this.recommendationsService.getRecommendations(
       questionnaireDto,
+      req.user.sub,
+    );
+  }
+
+  @Post('recommend/text')
+  @ApiOperation({ summary: 'Get product recommendations based on natural language text' })
+  async getRecommendationsFromText(@Body() textDto: TextRecommendationRequestDto) {
+    return this.recommendationsService.getRecommendationsFromText(textDto);
+  }
+
+  @Post('recommend/text/authenticated')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get personalized recommendations from text (authenticated)' })
+  async getPersonalizedRecommendationsFromText(
+    @Request() req,
+    @Body() textDto: TextRecommendationRequestDto,
+  ) {
+    return this.recommendationsService.getRecommendationsFromText(
+      textDto,
       req.user.sub,
     );
   }
