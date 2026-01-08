@@ -17,6 +17,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { BannersModule } from './modules/banners/banners.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { UploadModule } from './modules/upload/upload.module';
     BannersModule,
     AnalyticsModule,
     UploadModule,
+    RecommendationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
