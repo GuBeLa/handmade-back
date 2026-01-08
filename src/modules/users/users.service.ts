@@ -240,7 +240,7 @@ export class UsersService {
       throw new BadRequestException('Cannot follow yourself');
     }
 
-    // Check if already following
+    // Check if already following (idempotent - if already following, return success)
     const existingFollow = await this.firestoreService.findOneByTwoFields(
       'seller_follows',
       'userId',
@@ -250,7 +250,12 @@ export class UsersService {
     );
 
     if (existingFollow) {
-      throw new BadRequestException('Already following this seller');
+      // Already following - return success (idempotent behavior)
+      return {
+        message: 'Already following this seller',
+        follow: existingFollow,
+        alreadyFollowing: true,
+      };
     }
 
     // Create follow relationship
@@ -291,11 +296,12 @@ export class UsersService {
     return {
       message: 'Successfully followed seller',
       follow,
+      alreadyFollowing: false,
     };
   }
 
   async unfollowSeller(userId: string, sellerId: string): Promise<any> {
-    // Find and delete follow relationship
+    // Find and delete follow relationship (idempotent - if not following, return success)
     const follow: any = await this.firestoreService.findOneByTwoFields(
       'seller_follows',
       'userId',
@@ -305,7 +311,11 @@ export class UsersService {
     );
 
     if (!follow) {
-      throw new NotFoundException('Not following this seller');
+      // Not following - return success (idempotent behavior)
+      return {
+        message: 'Not following this seller',
+        alreadyUnfollowed: true,
+      };
     }
 
     await this.firestoreService.delete('seller_follows', follow.id);
@@ -326,6 +336,7 @@ export class UsersService {
 
     return {
       message: 'Successfully unfollowed seller',
+      alreadyUnfollowed: false,
     };
   }
 
