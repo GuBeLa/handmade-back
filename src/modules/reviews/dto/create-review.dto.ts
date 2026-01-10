@@ -17,7 +17,7 @@ export class CreateReviewDto {
   @IsString()
   comment?: string;
 
-  @ApiProperty({ required: false, type: [String], description: 'Array of image URLs' })
+  @ApiProperty({ required: false, type: [String], description: 'Array of image URLs (optional)' })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

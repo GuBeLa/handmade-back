@@ -9,6 +9,9 @@ export class ReviewsService {
 
   async create(userId: string, createDto: CreateReviewDto): Promise<any> {
     const { productId, rating, comment, images } = createDto;
+    
+    // Normalize images: if empty array or undefined, set to undefined
+    const normalizedImages = images && Array.isArray(images) && images.length > 0 ? images : undefined;
 
     const product: any = await this.firestoreService.findById('products', productId);
     if (!product) {
@@ -40,7 +43,7 @@ export class ReviewsService {
       productId,
       rating,
       comment,
-      images: images && images.length > 0 ? images : undefined,
+      images: normalizedImages,
       isVerifiedPurchase: hasPurchased,
       isVisible: true,
     });
