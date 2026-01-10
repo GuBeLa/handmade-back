@@ -71,5 +71,20 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   deliveryNotes?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  freeShipping?: boolean;
 }
 

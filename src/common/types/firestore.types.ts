@@ -62,6 +62,10 @@ export interface Product {
   description: string;
   price: number;
   discountPrice?: number;
+  discountPercentage?: number;
+  isOnSale?: boolean;
+  saleStartDate?: Date;
+  saleEndDate?: Date;
   categoryId: string;
   sellerId: string;
   images: Array<{ url: string; sortOrder: number }>;
@@ -99,6 +103,9 @@ export interface Order {
     variantColor?: string;
   }>;
   subtotal: number;
+  discount?: number;
+  freeShipping?: boolean;
+  couponCode?: string;
   deliveryFee: number;
   commission: number;
   total: number;
@@ -121,6 +128,7 @@ export interface Review {
   productId: string;
   rating: number;
   comment?: string;
+  images?: string[]; // Array of image URLs
   isVerifiedPurchase: boolean;
   isVisible: boolean;
   createdAt: any;
@@ -264,6 +272,44 @@ export interface Return {
   trackingNumber?: string;
   isRefunded: boolean;
   refundedAt?: Date;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed' | 'free_shipping' | 'buy_x_get_y';
+  value: number; // Percentage (0-100) or fixed amount
+  minPurchase?: number;
+  maxDiscount?: number;
+  usageLimit?: number;
+  usedCount: number;
+  validFrom: any; // Firestore Timestamp or Date
+  validUntil: any; // Firestore Timestamp or Date
+  isActive: boolean;
+  applicableCategories?: string[];
+  applicableProducts?: string[];
+  buyXQuantity?: number; // For buy_x_get_y type
+  getYQuantity?: number; // For buy_x_get_y type
+  description?: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Promotion {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'flash_sale' | 'seasonal' | 'clearance' | 'new_arrival';
+  discountPercentage: number;
+  products?: string[];
+  categories?: string[];
+  startDate: any; // Firestore Timestamp or Date
+  endDate: any; // Firestore Timestamp or Date
+  isActive: boolean;
+  bannerImage?: string;
+  bannerText?: string;
   createdAt: any;
   updatedAt: any;
 }

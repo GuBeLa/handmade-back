@@ -8,7 +8,7 @@ export class ReviewsService {
   constructor(private firestoreService: FirestoreService) {}
 
   async create(userId: string, createDto: CreateReviewDto): Promise<any> {
-    const { productId, rating, comment } = createDto;
+    const { productId, rating, comment, images } = createDto;
 
     const product: any = await this.firestoreService.findById('products', productId);
     if (!product) {
@@ -40,6 +40,7 @@ export class ReviewsService {
       productId,
       rating,
       comment,
+      images: images && images.length > 0 ? images : undefined,
       isVerifiedPurchase: hasPurchased,
       isVisible: true,
     });

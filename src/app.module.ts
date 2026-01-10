@@ -20,6 +20,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { SupportModule } from './modules/support/support.module';
 import { ReturnsModule } from './modules/returns/returns.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ReturnsModule } from './modules/returns/returns.module';
     RecommendationsModule,
     SupportModule,
     ReturnsModule,
+    PromotionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

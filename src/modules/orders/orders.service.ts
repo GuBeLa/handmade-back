@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { OrderStatus } from '../../common/enums/order-status.enum';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
@@ -6,12 +6,15 @@ import { DeliveryMethod } from '../../common/enums/delivery-method.enum';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CouponsService } from '../promotions/coupons.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private firestoreService: FirestoreService,
     private notificationsService: NotificationsService,
+    @Inject(forwardRef(() => CouponsService))
+    private readonly couponsService: CouponsService,
   ) {}
 
   async create(buyerId: string, createDto: CreateOrderDto): Promise<any> {
@@ -62,14 +65,46 @@ export class OrdersService {
       });
     }
 
-    // Calculate delivery fee
-    const deliveryFee = this.calculateDeliveryFee(deliveryMethod, deliveryInfo.deliveryRegion);
+    // Apply coupon discount if provided
+    let couponDiscount = 0;
+    let orderFreeShipping = false;
+    let appliedCouponId: string | null = null;
 
-    // Calculate commission
+    if (createDto.couponCode) {
+      try {
+        const couponResult = await this.couponsService.validateAndApplyCoupon(
+          {
+            code: createDto.couponCode,
+            subtotal: subtotal,
+          },
+          buyerId,
+        );
+        couponDiscount = couponResult.discount || createDto.discount || 0;
+        orderFreeShipping = couponResult.freeShipping || createDto.freeShipping || false;
+        appliedCouponId = couponResult.coupon.id;
+      } catch (error) {
+        // If coupon validation fails, use provided discount values as fallback
+        couponDiscount = createDto.discount || 0;
+        orderFreeShipping = createDto.freeShipping || false;
+      }
+    } else {
+      // Use provided discount values if no coupon code
+      couponDiscount = createDto.discount || 0;
+      orderFreeShipping = createDto.freeShipping || false;
+    }
+
+    // Calculate delivery fee
+    let deliveryFee = this.calculateDeliveryFee(deliveryMethod, deliveryInfo.deliveryRegion);
+    if (orderFreeShipping) {
+      deliveryFee = 0;
+    }
+
+    // Calculate commission (based on subtotal before discount)
     const commissionRate = parseFloat(process.env.DEFAULT_COMMISSION_PERCENTAGE || '10') / 100;
     const commission = subtotal * commissionRate;
 
-    const total = subtotal + deliveryFee;
+    // Calculate final total
+    const total = Math.max(0, subtotal - couponDiscount + deliveryFee);
 
     // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -80,16 +115,29 @@ export class OrdersService {
       buyerId,
       items: orderItems,
       subtotal,
+      discount: couponDiscount,
+      freeShipping: orderFreeShipping,
       deliveryFee,
       commission,
       total,
       paymentMethod,
       deliveryMethod,
       deliveryAddress,
+      couponCode: createDto.couponCode,
       ...deliveryInfo,
       status: OrderStatus.PENDING,
       isPaid: paymentMethod.includes('cod') ? false : true,
     });
+
+    // Increment coupon usage count if coupon was applied
+    if (appliedCouponId) {
+      try {
+        await this.couponsService.incrementCouponUsage(appliedCouponId);
+      } catch (error) {
+        // Log error but don't fail the order creation
+        console.error('Failed to increment coupon usage:', error);
+      }
+    }
 
     // Send notification to buyer
     await this.notificationsService.create({

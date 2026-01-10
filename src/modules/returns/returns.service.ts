@@ -40,7 +40,11 @@ export class ReturnsService {
 
       // Check if order was delivered within return window (14 days)
       if (order.deliveredAt) {
-        const deliveredDate = order.deliveredAt.toDate ? order.deliveredAt.toDate() : new Date(order.deliveredAt);
+        const deliveredDate = (order.deliveredAt as any)?.toDate 
+          ? (order.deliveredAt as any).toDate() 
+          : order.deliveredAt instanceof Date 
+          ? order.deliveredAt 
+          : new Date(order.deliveredAt);
         const daysSinceDelivery = (Date.now() - deliveredDate.getTime()) / (1000 * 60 * 60 * 24);
         
         if (daysSinceDelivery > this.RETURN_WINDOW_DAYS) {
@@ -397,7 +401,11 @@ export class ReturnsService {
         return { eligible: false, reason: 'Delivery date not found' };
       }
 
-      const deliveredDate = order.deliveredAt.toDate ? order.deliveredAt.toDate() : new Date(order.deliveredAt);
+      const deliveredDate = (order.deliveredAt as any)?.toDate 
+        ? (order.deliveredAt as any).toDate() 
+        : order.deliveredAt instanceof Date 
+        ? order.deliveredAt 
+        : new Date(order.deliveredAt);
       const daysSinceDelivery = (Date.now() - deliveredDate.getTime()) / (1000 * 60 * 60 * 24);
       const daysRemaining = Math.max(0, this.RETURN_WINDOW_DAYS - daysSinceDelivery);
 
