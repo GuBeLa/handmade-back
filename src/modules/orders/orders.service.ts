@@ -207,9 +207,33 @@ export class OrdersService {
       });
     }
 
-    // Load buyer info
+    // Load buyer info and convert Timestamps to proper format
     for (const order of orders) {
       order.buyer = await this.firestoreService.findById('users', order.buyerId);
+      
+      // Convert Firestore Timestamps to Date objects for proper JSON serialization
+      if (order.createdAt && typeof order.createdAt.toDate === 'function') {
+        order.createdAt = order.createdAt.toDate();
+      } else if (order.createdAt && typeof order.createdAt === 'object' && 'seconds' in order.createdAt) {
+        order.createdAt = new Date(order.createdAt.seconds * 1000);
+      }
+      
+      if (order.updatedAt && typeof order.updatedAt.toDate === 'function') {
+        order.updatedAt = order.updatedAt.toDate();
+      } else if (order.updatedAt && typeof order.updatedAt === 'object' && 'seconds' in order.updatedAt) {
+        order.updatedAt = new Date(order.updatedAt.seconds * 1000);
+      }
+      
+      // Convert other date fields if they exist
+      if (order.shippedAt && typeof order.shippedAt.toDate === 'function') {
+        order.shippedAt = order.shippedAt.toDate();
+      }
+      if (order.deliveredAt && typeof order.deliveredAt.toDate === 'function') {
+        order.deliveredAt = order.deliveredAt.toDate();
+      }
+      if (order.cancelledAt && typeof order.cancelledAt.toDate === 'function') {
+        order.cancelledAt = order.cancelledAt.toDate();
+      }
     }
 
     return orders;
@@ -230,6 +254,38 @@ export class OrdersService {
       for (const item of order.items) {
         item.product = await this.firestoreService.findById('products', item.productId);
       }
+    }
+
+    // Convert Firestore Timestamps to Date objects for proper JSON serialization
+    if (order.createdAt && typeof order.createdAt.toDate === 'function') {
+      order.createdAt = order.createdAt.toDate();
+    } else if (order.createdAt && typeof order.createdAt === 'object' && 'seconds' in order.createdAt) {
+      order.createdAt = new Date(order.createdAt.seconds * 1000);
+    }
+    
+    if (order.updatedAt && typeof order.updatedAt.toDate === 'function') {
+      order.updatedAt = order.updatedAt.toDate();
+    } else if (order.updatedAt && typeof order.updatedAt === 'object' && 'seconds' in order.updatedAt) {
+      order.updatedAt = new Date(order.updatedAt.seconds * 1000);
+    }
+    
+    // Convert other date fields if they exist
+    if (order.shippedAt && typeof order.shippedAt?.toDate === 'function') {
+      order.shippedAt = order.shippedAt.toDate();
+    } else if (order.shippedAt && typeof order.shippedAt === 'object' && 'seconds' in order.shippedAt) {
+      order.shippedAt = new Date(order.shippedAt.seconds * 1000);
+    }
+    
+    if (order.deliveredAt && typeof order.deliveredAt?.toDate === 'function') {
+      order.deliveredAt = order.deliveredAt.toDate();
+    } else if (order.deliveredAt && typeof order.deliveredAt === 'object' && 'seconds' in order.deliveredAt) {
+      order.deliveredAt = new Date(order.deliveredAt.seconds * 1000);
+    }
+    
+    if (order.cancelledAt && typeof order.cancelledAt?.toDate === 'function') {
+      order.cancelledAt = order.cancelledAt.toDate();
+    } else if (order.cancelledAt && typeof order.cancelledAt === 'object' && 'seconds' in order.cancelledAt) {
+      order.cancelledAt = new Date(order.cancelledAt.seconds * 1000);
     }
 
     return order;
