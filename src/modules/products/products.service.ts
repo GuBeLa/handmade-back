@@ -192,22 +192,43 @@ export class ProductsService {
       throw new BadRequestException('You can only update your own products');
     }
 
-    await this.firestoreService.update('products', id, updateDto);
+    // Extract images and variants separately to handle them differently
+    const { images, variants, ...updateData } = updateDto;
 
-    // Update images if provided
-    if (updateDto.images) {
-      await this.firestoreService.update('products', id, {
-        images: updateDto.images.map((url, index) => ({
-          url,
-          sortOrder: index,
-        })),
+    // Update product fields (excluding images and variants)
+    if (Object.keys(updateData).length > 0) {
+      await this.firestoreService.update('products', id, updateData);
+    }
+
+    // Update images if provided - transform string[] to {url, sortOrder}[] format
+    if (images && Array.isArray(images) && images.length > 0) {
+      // Filter out invalid URLs
+      const validImageUrls = images.filter((url: string) => {
+        if (!url || typeof url !== 'string') {
+          return false;
+        }
+        try {
+          const urlObj = new URL(url);
+          return ['http:', 'https:'].includes(urlObj.protocol);
+        } catch {
+          return false;
+        }
       });
+
+      if (validImageUrls.length > 0) {
+        await this.firestoreService.update('products', id, {
+          images: validImageUrls.map((url: string, index: number) => ({
+            url,
+            sortOrder: index,
+          })),
+        });
+      }
     }
 
     // Update variants if provided
-    if (updateDto.variants) {
+    if (variants !== undefined) {
       await this.firestoreService.update('products', id, {
-        variants: updateDto.variants,
+        variants: Array.isArray(variants) ? variants : [],
       });
     }
 
