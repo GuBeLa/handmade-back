@@ -18,6 +18,7 @@ import { BannersModule } from './modules/banners/banners.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
     AnalyticsModule,
     UploadModule,
     RecommendationsModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
