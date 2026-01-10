@@ -186,3 +186,84 @@ export interface Category {
   updatedAt: any;
 }
 
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  ticketNumber: string;
+  subject: string;
+  message: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category: 'order' | 'payment' | 'delivery' | 'return' | 'seller' | 'account' | 'technical' | 'other';
+  orderId?: string;
+  productId?: string;
+  responses: Array<{
+    id: string;
+    userId: string;
+    message: string;
+    isAdmin: boolean;
+    createdAt: any;
+  }>;
+  assignedTo?: string;
+  resolvedAt?: Date;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface FAQCategory {
+  id: string;
+  title: string;
+  titleEn?: string;
+  description?: string;
+  descriptionEn?: string;
+  icon?: string;
+  order: number;
+  isActive: boolean;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface FAQ {
+  id: string;
+  categoryId: string;
+  question: string;
+  questionEn?: string;
+  answer: string;
+  answerEn?: string;
+  order: number;
+  views: number;
+  isActive: boolean;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Return {
+  id: string;
+  returnNumber: string;
+  orderId: string;
+  userId: string;
+  sellerId: string;
+  items: Array<{
+    productId: string;
+    productTitle: string;
+    productImage?: string;
+    price: number;
+    quantity: number;
+    total: number;
+    variantSize?: string;
+    variantColor?: string;
+  }>;
+  reason: 'defective' | 'wrong_product' | 'size_doesnt_fit' | 'color_mismatch' | 'other';
+  description?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'in_transit' | 'refunded' | 'cancelled';
+  requestedAt: any;
+  approvedAt?: Date;
+  rejectedAt?: Date;
+  rejectionReason?: string;
+  refundAmount?: number;
+  trackingNumber?: string;
+  isRefunded: boolean;
+  refundedAt?: Date;
+  createdAt: any;
+  updatedAt: any;
+}
