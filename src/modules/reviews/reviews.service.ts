@@ -38,15 +38,29 @@ export class ReviewsService {
       order.items?.some((item: any) => item.productId === productId),
     );
 
-    const review = await this.firestoreService.create('reviews', {
+    // Build review data object, excluding undefined fields
+    const reviewData: any = {
       userId,
       productId,
       rating,
-      comment,
-      images: normalizedImages,
       isVerifiedPurchase: hasPurchased,
       isVisible: true,
-    });
+    };
+
+    // Only include comment if it's defined and not empty
+    if (comment && typeof comment === 'string' && comment.trim().length > 0) {
+      reviewData.comment = comment.trim();
+    } else {
+      reviewData.comment = null; // Use null instead of undefined for Firestore
+    }
+
+    // Only include images if it's defined and has content
+    if (normalizedImages && Array.isArray(normalizedImages) && normalizedImages.length > 0) {
+      reviewData.images = normalizedImages;
+    }
+    // Note: We don't include images field at all if it's undefined/empty - Firestore will not store it
+
+    const review = await this.firestoreService.create('reviews', reviewData);
 
     // Update product rating
     await this.updateProductRating(productId);
