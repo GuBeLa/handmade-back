@@ -49,6 +49,26 @@ export class FirestoreService {
     return { id: saved.id, ...saved.data() } as T;
   }
 
+  async createWithId<T = any>(collectionName: string, id: string, data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): Promise<T> {
+    const docRef = this.doc(collectionName, id);
+    const docSnapshot = await docRef.get();
+    
+    if (docSnapshot.exists) {
+      // Document already exists, return it
+      return { id: docSnapshot.id, ...docSnapshot.data() } as T;
+    }
+    
+    const now = Timestamp.now();
+    const docData = {
+      ...data,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await docRef.set(docData);
+    const saved = await docRef.get();
+    return { id: saved.id, ...saved.data() } as T;
+  }
+
   async findById<T = any>(collectionName: string, id: string): Promise<T | null> {
     const docRef = this.doc(collectionName, id);
     const doc = await docRef.get();

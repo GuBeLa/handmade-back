@@ -206,16 +206,121 @@ export class SupportService {
   }
 
   /**
+   * Initialize default FAQ categories if collection is empty
+   */
+  private async initializeFAQCategoriesIfNeeded(): Promise<void> {
+    try {
+      this.logger.log('Checking if FAQ categories need initialization...');
+      const existingCategories = await this.firestoreService.findAll<FAQCategory>('faq_categories');
+      this.logger.log(`Found ${existingCategories.length} existing FAQ categories`);
+      
+      if (existingCategories.length > 0) {
+        this.logger.log('FAQ categories already exist, skipping initialization');
+        return; // Categories already exist
+      }
+
+      this.logger.log('No FAQ categories found, initializing default categories...');
+      // Create default FAQ categories
+      const defaultCategories = [
+        {
+          id: 'orders',
+          title: 'შეკვეთები',
+          titleEn: 'Orders',
+          description: 'შეკვეთების შესახებ ხშირად დასმული კითხვები',
+          descriptionEn: 'Frequently asked questions about orders',
+          icon: 'receipt-outline',
+          order: 1,
+          isActive: true,
+        },
+        {
+          id: 'payments',
+          title: 'გადახდები',
+          titleEn: 'Payments',
+          description: 'გადახდის მეთოდებისა და პროცესების შესახებ',
+          descriptionEn: 'About payment methods and processes',
+          icon: 'card-outline',
+          order: 2,
+          isActive: true,
+        },
+        {
+          id: 'delivery',
+          title: 'მიტანა',
+          titleEn: 'Delivery',
+          description: 'მიტანის მეთოდები, ხარჯები და დრო',
+          descriptionEn: 'Delivery methods, costs and timing',
+          icon: 'car-outline',
+          order: 3,
+          isActive: true,
+        },
+        {
+          id: 'returns',
+          title: 'დაბრუნება/გაცვლა',
+          titleEn: 'Returns/Exchanges',
+          description: 'დაბრუნებისა და გაცვლის პოლიტიკა',
+          descriptionEn: 'Return and exchange policy',
+          icon: 'swap-horizontal-outline',
+          order: 4,
+          isActive: true,
+        },
+        {
+          id: 'sellers',
+          title: 'მაღაზიებისთვის',
+          titleEn: 'For Sellers',
+          description: 'ინფორმაცია მაღაზიებისთვის',
+          descriptionEn: 'Information for sellers',
+          icon: 'storefront-outline',
+          order: 5,
+          isActive: true,
+        },
+        {
+          id: 'account',
+          title: 'ანგარიშის მართვა',
+          titleEn: 'Account Management',
+          description: 'ანგარიშის პარამეტრები და მართვა',
+          descriptionEn: 'Account settings and management',
+          icon: 'person-outline',
+          order: 6,
+          isActive: true,
+        },
+      ];
+
+      // Create categories in Firestore with specific IDs
+      for (const category of defaultCategories) {
+        try {
+          const { id, ...categoryData } = category;
+          this.logger.log(`Creating FAQ category: ${id} - ${category.title}`);
+          await this.firestoreService.createWithId('faq_categories', id, categoryData);
+          this.logger.log(`Successfully created FAQ category: ${id}`);
+        } catch (categoryError: any) {
+          this.logger.error(`Failed to create FAQ category ${category.id}:`, categoryError.message);
+        }
+      }
+
+      this.logger.log(`Completed initialization of ${defaultCategories.length} default FAQ categories`);
+    } catch (error) {
+      this.logger.error('Error initializing FAQ categories:', error);
+      // Don't throw - allow the method to continue even if initialization fails
+    }
+  }
+
+  /**
    * Get all FAQ categories
    */
   async getFAQCategories(): Promise<FAQCategory[]> {
     try {
+      // Initialize categories if collection is empty
+      await this.initializeFAQCategoriesIfNeeded();
+
       const categories = await this.firestoreService.findAll<FAQCategory>('faq_categories');
+      this.logger.log(`Found ${categories.length} FAQ categories in database`);
 
       // Filter active categories and sort by order
-      return categories
+      const activeCategories = categories
         .filter((cat) => cat.isActive !== false)
         .sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      this.logger.log(`Returning ${activeCategories.length} active FAQ categories`);
+      return activeCategories;
     } catch (error) {
       this.logger.error('Error fetching FAQ categories:', error);
       throw new BadRequestException('Failed to fetch FAQ categories');
