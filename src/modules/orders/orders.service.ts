@@ -109,8 +109,8 @@ export class OrdersService {
     // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-    // Create order
-    const order = await this.firestoreService.create('orders', {
+    // Prepare order data
+    const orderData: any = {
       orderNumber,
       buyerId,
       items: orderItems,
@@ -123,11 +123,25 @@ export class OrdersService {
       paymentMethod,
       deliveryMethod,
       deliveryAddress,
-      couponCode: createDto.couponCode,
-      ...deliveryInfo,
       status: OrderStatus.PENDING,
       isPaid: paymentMethod.includes('cod') ? false : true,
+    };
+
+    // Only include couponCode if it exists and is not undefined
+    if (createDto.couponCode) {
+      orderData.couponCode = createDto.couponCode;
+    }
+
+    // Add deliveryInfo fields only if they are defined (filter out undefined values)
+    Object.keys(deliveryInfo).forEach(key => {
+      const value = (deliveryInfo as any)[key];
+      if (value !== undefined && value !== null) {
+        orderData[key] = value;
+      }
     });
+
+    // Create order
+    const order = await this.firestoreService.create('orders', orderData);
 
     // Increment coupon usage count if coupon was applied
     if (appliedCouponId) {
