@@ -195,9 +195,14 @@ export class ProductsService {
     // Extract images and variants separately to handle them differently
     const { images, variants, ...updateData } = updateDto;
 
-    // Update product fields (excluding images and variants)
-    if (Object.keys(updateData).length > 0) {
-      await this.firestoreService.update('products', id, updateData);
+    // Filter out undefined/null values from updateData before updating Firestore
+    const filteredUpdateData = Object.fromEntries(
+      Object.entries(updateData).filter(([, value]) => value !== undefined && value !== null)
+    );
+
+    // Update product fields (excluding images and variants and undefined values)
+    if (Object.keys(filteredUpdateData).length > 0) {
+      await this.firestoreService.update('products', id, filteredUpdateData);
     }
 
     // Update images if provided - transform string[] to {url, sortOrder}[] format

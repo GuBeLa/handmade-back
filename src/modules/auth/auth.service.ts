@@ -19,29 +19,29 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { phone, email, password, firstName, lastName } = registerDto;
+    const { email, password, firstName, lastName } = registerDto;
 
-    // Check if user exists
-    if (phone) {
-      const existingUser = await this.firestoreService.findOneBy('users', 'phone', phone);
-      if (existingUser) {
-        throw new BadRequestException('User with this phone already exists');
-      }
+    // Email is required for registration
+    if (!email) {
+      throw new BadRequestException('Email is required for registration');
     }
 
-    if (email) {
-      const existingUser = await this.firestoreService.findOneBy('users', 'email', email);
-      if (existingUser) {
-        throw new BadRequestException('User with this email already exists');
-      }
+    // Check if user exists
+    const existingUser = await this.firestoreService.findOneBy('users', 'email', email);
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    // Password is required for registration
+    if (!password) {
+      throw new BadRequestException('Password is required for registration');
     }
 
     // Hash password
-    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Create user (phone can be added later in profile)
     const user = await this.firestoreService.create('users', {
-      phone,
       email,
       password: hashedPassword,
       firstName,
@@ -52,14 +52,11 @@ export class AuthService {
       isActive: true,
     });
 
-    // Send SMS verification code if phone provided
-    if (phone) {
-      await this.smsService.sendVerificationCode(phone);
-    }
-
+    // Generate tokens and return user immediately (no SMS verification required)
+    const tokens = await this.generateTokens(user);
     return {
-      message: 'Registration successful. Please verify your phone.',
-      userId: (user as any).id,
+      ...tokens,
+      user: this.sanitizeUser(user),
     };
   }
 
