@@ -30,8 +30,14 @@ export class AnalyticsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.SELLER)
   @ApiOperation({ summary: 'Get seller statistics' })
-  async getSellerStats(@Request() req) {
-    return this.analyticsService.getSellerStats(req.user.sub);
+  async getSellerStats(
+    @Request() req,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const monthNum = month ? parseInt(month, 10) : undefined;
+    const yearNum = year ? parseInt(year, 10) : undefined;
+    return this.analyticsService.getSellerStats(req.user.sub, monthNum, yearNum);
   }
 }
 

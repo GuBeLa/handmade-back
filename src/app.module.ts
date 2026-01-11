@@ -21,6 +21,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { SupportModule } from './modules/support/support.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
     SupportModule,
     ReturnsModule,
     PromotionsModule,
+    ExpensesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

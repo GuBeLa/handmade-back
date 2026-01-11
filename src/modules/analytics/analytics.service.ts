@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { OrderStatus } from '../../common/enums/order-status.enum';
+import { ExpensesService } from '../expenses/expenses.service';
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private firestoreService: FirestoreService) {}
+  constructor(
+    private firestoreService: FirestoreService,
+    private expensesService: ExpensesService,
+  ) {}
 
   async getDashboardStats() {
     const now = new Date();
@@ -58,9 +62,12 @@ export class AnalyticsService {
     };
   }
 
-  async getSellerStats(sellerId: string) {
+  async getSellerStats(sellerId: string, month?: number, year?: number) {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const selectedMonth = month !== undefined ? month : now.getMonth();
+    const selectedYear = year !== undefined ? year : now.getFullYear();
+    const startOfMonth = new Date(selectedYear, selectedMonth, 1);
+    const endOfMonth = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
 
     // Get seller products
     const sellerProducts: any[] = await this.firestoreService.findAll('products', (ref) =>
@@ -77,7 +84,7 @@ export class AnalyticsService {
 
     const monthlyOrders = orders.filter((o: any) => {
       const createdAt = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-      return createdAt >= startOfMonth;
+      return createdAt >= startOfMonth && createdAt <= endOfMonth;
     });
 
     const totalSales = orders
@@ -87,12 +94,26 @@ export class AnalyticsService {
       .filter((o: any) => o.isPaid)
       .reduce((sum: number, o: any) => sum + (o.total || 0), 0);
 
+    // Get expenses for the selected month
+    const monthlyExpenses = await this.expensesService.getTotalExpenses(sellerId, selectedMonth, selectedYear);
+    const totalExpenses = await this.expensesService.getTotalExpenses(sellerId);
+
+    // Calculate net income
+    const monthlyNetIncome = monthlySales - monthlyExpenses;
+    const totalNetIncome = totalSales - totalExpenses;
+
     return {
       totalProducts: sellerProducts.length,
       totalSales,
       monthlySales,
       totalOrders: orders.length,
       monthlyOrders: monthlyOrders.length,
+      monthlyExpenses,
+      totalExpenses,
+      monthlyNetIncome,
+      totalNetIncome,
+      month: selectedMonth,
+      year: selectedYear,
     };
   }
 }
