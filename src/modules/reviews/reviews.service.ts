@@ -1,11 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { FirestoreService } from '../../common/services/firestore.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { ReplyReviewDto } from './dto/reply-review.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private firestoreService: FirestoreService) {}
+  constructor(
+    private firestoreService: FirestoreService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(userId: string, createDto: CreateReviewDto): Promise<any> {
     const { productId, rating, comment, images } = createDto;
@@ -64,6 +69,27 @@ export class ReviewsService {
 
     // Update product rating
     await this.updateProductRating(productId);
+
+    // Send notification to seller
+    if (product.sellerId) {
+      try {
+        const user: any = await this.firestoreService.findById('users', userId);
+        const userName = user?.firstName && user?.lastName
+          ? `${user.firstName} ${user.lastName}`
+          : user?.email || 'Someone';
+
+        await this.notificationsService.create({
+          userId: product.sellerId,
+          type: 'review',
+          title: 'New Review',
+          message: `${userName} left a ${rating}-star review on "${product.title}"`,
+          link: `/products/${productId}`,
+        });
+      } catch (error) {
+        console.error('Failed to send review notification:', error);
+        // Don't fail review creation if notification fails
+      }
+    }
 
     return review;
   }
@@ -138,6 +164,52 @@ export class ReviewsService {
 
     // Update product rating
     await this.updateProductRating(productId);
+  }
+
+  async replyToReview(reviewId: string, sellerId: string, replyDto: ReplyReviewDto): Promise<any> {
+    const review: any = await this.firestoreService.findById('reviews', reviewId);
+
+    if (!review) {
+      throw new NotFoundException('Review not found');
+    }
+
+    // Get product to verify seller
+    const product: any = await this.firestoreService.findById('products', review.productId);
+    if (!product || product.sellerId !== sellerId) {
+      throw new BadRequestException('You can only reply to reviews on your own products');
+    }
+
+    // Check if already replied
+    if (review.sellerReply) {
+      throw new BadRequestException('You have already replied to this review');
+    }
+
+    // Update review with seller reply
+    await this.firestoreService.update('reviews', reviewId, {
+      sellerReply: replyDto.reply,
+      sellerReplyAt: new Date(),
+    });
+
+    // Send notification to review author
+    try {
+      const seller: any = await this.firestoreService.findById('users', sellerId);
+      const sellerName = seller?.firstName && seller?.lastName
+        ? `${seller.firstName} ${seller.lastName}`
+        : seller?.email || 'Seller';
+
+      await this.notificationsService.create({
+        userId: review.userId,
+        type: 'review_reply',
+        title: 'Seller Replied',
+        message: `${sellerName} replied to your review on "${product.title}"`,
+        link: `/products/${review.productId}`,
+      });
+    } catch (error) {
+      console.error('Failed to send reply notification:', error);
+      // Don't fail reply if notification fails
+    }
+
+    return this.findOne(reviewId);
   }
 
   private async updateProductRating(productId: string): Promise<void> {

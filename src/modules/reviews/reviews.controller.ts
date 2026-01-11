@@ -12,8 +12,12 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../../common/enums/user-role.enum';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { ReplyReviewDto } from './dto/reply-review.dto';
 
 @ApiTags('Reviews')
 @Controller('reviews')
@@ -58,6 +62,19 @@ export class ReviewsController {
   @ApiOperation({ summary: 'Delete review' })
   async delete(@Param('id') id: string, @Request() req) {
     return this.reviewsService.delete(id, req.user.sub);
+  }
+
+  @Post(':id/reply')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SELLER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reply to review (Seller only)' })
+  async replyToReview(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() replyDto: ReplyReviewDto,
+  ) {
+    return this.reviewsService.replyToReview(id, req.user.sub, replyDto);
   }
 }
 
