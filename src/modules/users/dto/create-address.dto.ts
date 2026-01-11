@@ -45,6 +45,26 @@ export class CreateAddressDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  specialInstructions?: string; // კორპუსი, შესასვლელი
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  landmark?: string; // ლანდმარკი
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  cityId?: string; // City ID for autocomplete
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  regionId?: string; // Region ID for autocomplete
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsNumber()
   latitude?: number;
 

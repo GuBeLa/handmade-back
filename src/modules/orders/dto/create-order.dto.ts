@@ -75,6 +75,20 @@ export class CreateOrderDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  deliveryRegionId?: string; // Region ID for pricing calculation
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  deliveryCityId?: string; // City ID for pricing calculation
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  isRural?: boolean; // Whether delivery is to a rural area/village
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   couponCode?: string;
 
   @ApiProperty({ required: false })

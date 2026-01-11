@@ -173,6 +173,8 @@ export class ProductsService {
         'userId',
         seller.id,
       );
+      // Note: Badges are calculated in getSellerPublicProfile endpoint
+      // For product detail, badges will be loaded via useProductDetail hook which calls getPublicSellerProfile
     }
 
     return product;

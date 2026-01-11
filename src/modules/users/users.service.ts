@@ -62,6 +62,8 @@ export class UsersService {
       userId,
       moderationStatus: ModerationStatus.PENDING,
       isVerified: false,
+      verificationStatus: 'pending',
+      sellerBadges: [],
     });
 
     // Update user role to SELLER if not already
@@ -120,6 +122,74 @@ export class UsersService {
     return { ...profile, user };
   }
 
+  async calculateSellerBadges(sellerId: string, profile: any): Promise<string[]> {
+    if (!profile) return [];
+    const badges: string[] = [];
+
+    // ✅ Verified Seller - if isVerified is true
+    if (profile?.isVerified === true && profile?.verificationStatus === 'approved') {
+      badges.push('verified');
+    }
+
+    // ⭐ Premium Seller - if has premium or business subscription
+    try {
+      if (profile?.subscriptionPlan && (profile.subscriptionPlan === 'premium' || profile.subscriptionPlan === 'business')) {
+        if (profile.subscriptionStatus === 'active') {
+          badges.push('premium');
+        }
+      }
+    } catch (error) {
+      console.error('Error calculating premium badge:', error);
+    }
+
+    // 🔥 Top Rated Seller - 4.5+ rating, 100+ reviews
+    try {
+      const sellerProducts: any[] = await this.firestoreService.findAll('products', (ref) =>
+        ref.where('sellerId', '==', sellerId),
+      );
+      
+      if (sellerProducts.length > 0) {
+        const totalReviews = sellerProducts.reduce((sum, p) => sum + (p.totalReviews || 0), 0);
+        const totalRating = sellerProducts.reduce((sum, p) => sum + ((p.averageRating || 0) * (p.totalReviews || 0)), 0);
+        const averageRating = totalReviews > 0 ? totalRating / totalReviews : 0;
+
+        if (averageRating >= 4.5 && totalReviews >= 100) {
+          badges.push('top_rated');
+        }
+      }
+    } catch (error) {
+      console.error('Error calculating top_rated badge:', error);
+    }
+
+    // 💎 Trusted Seller - 6+ months on platform, 0 disputes
+    try {
+      if (profile?.createdAt) {
+        const createdAt = profile.createdAt?.toDate ? profile.createdAt.toDate() : new Date(profile.createdAt);
+        const monthsOnPlatform = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30);
+        
+        if (monthsOnPlatform >= 6) {
+          // Check for disputes (returns with rejected status)
+          const returns: any[] = await this.firestoreService.findAll('returns');
+          const sellerReturns = returns.filter((r: any) => r.sellerId === sellerId && r.status === 'rejected');
+          
+          // Check support tickets with high priority issues
+          const supportTickets: any[] = await this.firestoreService.findAll('support_tickets');
+          const sellerTickets = supportTickets.filter((t: any) => 
+            t.userId === sellerId && (t.priority === 'high' || t.priority === 'urgent') && t.status !== 'resolved'
+          );
+
+          if (sellerReturns.length === 0 && sellerTickets.length === 0) {
+            badges.push('trusted');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error calculating trusted badge:', error);
+    }
+
+    return badges;
+  }
+
   async getSellerPublicProfile(sellerId: string): Promise<any> {
     const user: any = await this.findById(sellerId);
     
@@ -137,6 +207,17 @@ export class UsersService {
       sellerId,
     );
 
+    // Calculate badges
+    const badges = profile ? await this.calculateSellerBadges(sellerId, profile) : [];
+    
+    // Update profile with calculated badges if they changed
+    if (profile && JSON.stringify(profile.sellerBadges || []) !== JSON.stringify(badges)) {
+      await this.firestoreService.update('seller_profiles', profile.id, {
+        sellerBadges: badges,
+      });
+      profile.sellerBadges = badges;
+    }
+
     // Return user and profile even if profile doesn't exist yet
     return {
       user: {
@@ -147,7 +228,7 @@ export class UsersService {
         phone: user.phone,
         avatar: user.avatar,
       },
-      sellerProfile: profile || null,
+      sellerProfile: profile ? { ...profile, sellerBadges: badges } : null,
     };
   }
 
@@ -178,11 +259,20 @@ export class UsersService {
       throw new NotFoundException('Seller profile not found');
     }
 
-    return this.firestoreService.update('seller_profiles', profileId, {
+    const updated = await this.firestoreService.update('seller_profiles', profileId, {
       isVerified: true,
+      verificationStatus: 'approved',
       verifiedBy: adminId,
       verifiedAt: new Date(),
     });
+
+    // Recalculate badges after verification
+    const badges = await this.calculateSellerBadges(profile.userId, updated);
+    await this.firestoreService.update('seller_profiles', profileId, {
+      sellerBadges: badges,
+    });
+
+    return { ...updated, sellerBadges: badges };
   }
 
   async unverifySellerProfile(profileId: string, adminId: string): Promise<any> {

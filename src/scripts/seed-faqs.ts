@@ -332,29 +332,34 @@ async function seedFAQs() {
           .limit(1)
           .get();
 
-        if (!existingQuery.empty) {
-          console.log(`⏭️  FAQ already exists: ${faq.question.substring(0, 50)}...`);
-          skipped++;
-          continue;
-        }
-
         const now = Timestamp.now();
-        const faqRef = db.collection('faqs').doc();
-        
-        await faqRef.set({
-          ...faq,
-          createdAt: now,
-          updatedAt: now,
-        });
 
-        console.log(`✅ Created FAQ: ${faq.question.substring(0, 50)}...`);
-        created++;
+        if (!existingQuery.empty) {
+          // Update existing FAQ
+          const existingDoc = existingQuery.docs[0];
+          await existingDoc.ref.update({
+            ...faq,
+            updatedAt: now,
+          });
+          console.log(`🔄 Updated FAQ: ${faq.question.substring(0, 50)}...`);
+          created++;
+        } else {
+          // Create new FAQ
+          const faqRef = db.collection('faqs').doc();
+          await faqRef.set({
+            ...faq,
+            createdAt: now,
+            updatedAt: now,
+          });
+          console.log(`✅ Created FAQ: ${faq.question.substring(0, 50)}...`);
+          created++;
+        }
       } catch (error: any) {
         console.error(`❌ Error creating FAQ: ${faq.question.substring(0, 50)}...`, error.message);
       }
     }
 
-    console.log(`\n📊 FAQs: Created ${created}, Skipped ${skipped}\n`);
+    console.log(`\n📊 FAQs: Created/Updated ${created}, Skipped ${skipped}\n`);
 
     // Verify
     const snapshot = await db.collection('faqs').get();

@@ -95,5 +95,24 @@ export class CreateSellerProfileDto {
   @ApiProperty()
   @IsString()
   returnPolicy: string;
+
+  // Georgian ID numbers for business registration (required for verification)
+  @ApiProperty()
+  @IsString()
+  personalId: string; // პირადი ნომერი (Personal ID)
+
+  @ApiProperty()
+  @IsString()
+  identificationNumber: string; // საიდენტიფიკაციო ნომერი (საიდენტიფიკაციო N)
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  businessName?: string; // ბიზნესის სახელწოდება (თუ არის)
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  taxNumber?: string; // საგადასახადო ნომერი (თუ არის)
 }
 

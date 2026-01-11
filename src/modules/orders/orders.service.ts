@@ -7,6 +7,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CouponsService } from '../promotions/coupons.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class OrdersService {
@@ -15,6 +16,8 @@ export class OrdersService {
     private notificationsService: NotificationsService,
     @Inject(forwardRef(() => CouponsService))
     private readonly couponsService: CouponsService,
+    @Inject(forwardRef(() => SubscriptionsService))
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(buyerId: string, createDto: CreateOrderDto): Promise<any> {
@@ -93,14 +96,35 @@ export class OrdersService {
       orderFreeShipping = createDto.freeShipping || false;
     }
 
-    // Calculate delivery fee
-    let deliveryFee = this.calculateDeliveryFee(deliveryMethod, deliveryInfo.deliveryRegion);
+    // Calculate delivery fee based on region and city
+    let deliveryFee = this.calculateDeliveryFee(
+      deliveryMethod,
+      deliveryInfo.deliveryRegion,
+      deliveryInfo.deliveryCity,
+      deliveryInfo.isRural,
+    );
     if (orderFreeShipping) {
       deliveryFee = 0;
     }
 
     // Calculate commission (based on subtotal before discount)
-    const commissionRate = parseFloat(process.env.DEFAULT_COMMISSION_PERCENTAGE || '10') / 100;
+    // Get commission rate from subscription if available, otherwise use default
+    let commissionRate = parseFloat(process.env.DEFAULT_COMMISSION_PERCENTAGE || '10') / 100;
+    
+    // Get seller ID from first product (assuming all products are from same seller)
+    if (orderItems.length > 0) {
+      const firstProduct: any = await this.firestoreService.findById('products', orderItems[0].productId);
+      if (firstProduct?.sellerId) {
+        try {
+          const subscriptionRate = await this.subscriptionsService.getCommissionRate(firstProduct.sellerId);
+          commissionRate = subscriptionRate / 100;
+        } catch (error) {
+          // If subscription service fails, use default rate
+          console.error('Error getting commission rate from subscription:', error);
+        }
+      }
+    }
+    
     const commission = subtotal * commissionRate;
 
     // Calculate final total
@@ -357,10 +381,29 @@ export class OrdersService {
     return this.findOne(id);
   }
 
-  private calculateDeliveryFee(method: DeliveryMethod, region?: string): number {
+  private calculateDeliveryFee(method: DeliveryMethod, region?: string, city?: string, isRural?: boolean): number {
     if (method === DeliveryMethod.PICKUP) {
       return 0;
     }
+
+    // Regional delivery pricing for Georgia
+    // Tbilisi: 5₾ (1-2 days)
+    if (region?.toLowerCase() === 'tbilisi' || city?.toLowerCase() === 'tbilisi') {
+      return 5;
+    }
+
+    // Batumi, Kutaisi: 8₾ (2-3 days)
+    if (city && ['batumi', 'kutaisi'].includes(city.toLowerCase())) {
+      return 8;
+    }
+
+    // Villages/Rural areas: 15₾ (5-7 days)
+    if (isRural) {
+      return 15;
+    }
+
+    // Other cities: 10₾ (3-5 days) - default
+    return 10;
 
     if (
       method === DeliveryMethod.COURIER ||

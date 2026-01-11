@@ -328,10 +328,40 @@ export class SupportService {
   }
 
   /**
+   * Initialize/Update default FAQs
+   */
+  private async initializeFAQsIfNeeded(): Promise<void> {
+    try {
+      this.logger.log('Checking if FAQs need initialization...');
+      const existingFAQs = await this.firestoreService.findAll<FAQ>('faqs');
+      
+      // Only initialize if collection is empty (to avoid performance issues)
+      if (existingFAQs.length === 0) {
+        this.logger.log('No FAQs found, initializing default FAQs...');
+        // Import FAQs from seed file
+        const { seedFAQs } = await import('../../scripts/seed-faqs');
+        await seedFAQs();
+        this.logger.log('FAQs initialized successfully');
+      } else {
+        this.logger.log(`Found ${existingFAQs.length} existing FAQs, skipping initialization`);
+      }
+    } catch (error) {
+      this.logger.error('Error initializing FAQs:', error);
+      // Don't throw - allow the method to continue even if initialization fails
+    }
+  }
+
+  /**
    * Get FAQs by category
    */
   async getFAQsByCategory(categoryId?: string): Promise<FAQ[]> {
     try {
+      // Initialize FAQs if needed (only on first call or when collection is empty)
+      const allFAQs = await this.firestoreService.findAll<FAQ>('faqs');
+      if (allFAQs.length === 0) {
+        await this.initializeFAQsIfNeeded();
+      }
+
       let faqs: FAQ[];
 
       if (categoryId) {
@@ -442,6 +472,36 @@ export class SupportService {
     } catch (error) {
       this.logger.error('Error fetching all tickets:', error);
       throw new BadRequestException('Failed to fetch tickets');
+    }
+  }
+
+  /**
+   * Force refresh FAQ categories and FAQs (Admin only)
+   */
+  async refreshFAQs(): Promise<{ message: string; categoriesUpdated: number; faqsUpdated: number }> {
+    try {
+      this.logger.log('Force refreshing FAQ categories and FAQs...');
+      
+      // Force update categories
+      await this.initializeFAQCategoriesIfNeeded();
+      
+      // Force update FAQs by running seed script
+      const { seedFAQs } = await import('../../scripts/seed-faqs');
+      await seedFAQs();
+      
+      const categories = await this.firestoreService.findAll<FAQCategory>('faq_categories');
+      const faqs = await this.firestoreService.findAll<FAQ>('faqs');
+      
+      this.logger.log(`FAQ refresh completed: ${categories.length} categories, ${faqs.length} FAQs`);
+      
+      return {
+        message: 'FAQs refreshed successfully',
+        categoriesUpdated: categories.length,
+        faqsUpdated: faqs.length,
+      };
+    } catch (error) {
+      this.logger.error('Error refreshing FAQs:', error);
+      throw new BadRequestException('Failed to refresh FAQs');
     }
   }
 }

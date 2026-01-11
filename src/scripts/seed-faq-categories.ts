@@ -108,34 +108,44 @@ async function seedFAQCategories() {
         const existingRef = db.collection('faq_categories').doc(categoryData.id);
         const existingDoc = await existingRef.get();
         
-        if (existingDoc.exists) {
-          console.log(`⏭️  Category ${categoryData.id} already exists, skipping...`);
-          skipped++;
-          continue;
-        }
-        
         const now = Timestamp.now();
         
-        await existingRef.set({
-          title: categoryData.title,
-          titleEn: categoryData.titleEn,
-          description: categoryData.description,
-          descriptionEn: categoryData.descriptionEn,
-          icon: categoryData.icon,
-          order: categoryData.order,
-          isActive: categoryData.isActive,
-          createdAt: now,
-          updatedAt: now,
-        });
-        
-        console.log(`✅ Created FAQ category: ${categoryData.title} (${categoryData.titleEn})`);
-        created++;
+        if (existingDoc.exists) {
+          // Update existing category
+          await existingRef.update({
+            title: categoryData.title,
+            titleEn: categoryData.titleEn,
+            description: categoryData.description,
+            descriptionEn: categoryData.descriptionEn,
+            icon: categoryData.icon,
+            order: categoryData.order,
+            isActive: categoryData.isActive,
+            updatedAt: now,
+          });
+          console.log(`🔄 Updated FAQ category: ${categoryData.title} (${categoryData.titleEn})`);
+          created++;
+        } else {
+          // Create new category
+          await existingRef.set({
+            title: categoryData.title,
+            titleEn: categoryData.titleEn,
+            description: categoryData.description,
+            descriptionEn: categoryData.descriptionEn,
+            icon: categoryData.icon,
+            order: categoryData.order,
+            isActive: categoryData.isActive,
+            createdAt: now,
+            updatedAt: now,
+          });
+          console.log(`✅ Created FAQ category: ${categoryData.title} (${categoryData.titleEn})`);
+          created++;
+        }
       } catch (error: any) {
         console.error(`❌ Error creating FAQ category ${categoryData.id}:`, error.message);
       }
     }
     
-    console.log(`\n📊 FAQ Categories: Created ${created}, Skipped ${skipped}\n`);
+    console.log(`\n📊 FAQ Categories: Created/Updated ${created}, Skipped ${skipped}\n`);
     return { created, skipped };
   } catch (error: any) {
     console.error('\n❌ FAQ Categories seeding failed:', error.message);

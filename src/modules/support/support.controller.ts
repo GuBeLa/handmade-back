@@ -108,4 +108,13 @@ export class SupportController {
   async getFAQ(@Param('id') id: string) {
     return this.supportService.getFAQById(id);
   }
+
+  @Post('faq/refresh')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Force refresh FAQ categories and FAQs (Admin only)' })
+  async refreshFAQs() {
+    return this.supportService.refreshFAQs();
+  }
 }

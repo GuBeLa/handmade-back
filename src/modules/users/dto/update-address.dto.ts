@@ -49,6 +49,26 @@ export class UpdateAddressDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  specialInstructions?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  cityId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  regionId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsNumber()
   latitude?: number;
 

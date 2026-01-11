@@ -22,6 +22,8 @@ import { SupportModule } from './modules/support/support.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -49,6 +51,8 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
     ReturnsModule,
     PromotionsModule,
     ExpensesModule,
+    SubscriptionsModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [AppService],
