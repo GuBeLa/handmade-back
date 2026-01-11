@@ -5,6 +5,8 @@ import {
   UseInterceptors,
   UploadedFile,
   UploadedFiles,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -33,8 +35,35 @@ export class UploadController {
   async uploadSingle(
     @UploadedFile() file: Express.Multer.File,
   ): Promise<{ url: string }> {
-    const url = await this.uploadService.uploadFile(file);
-    return { url };
+    // Validate file
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    // Validate file type
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException(`Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`);
+    }
+
+    // Validate file size (already handled by multer, but double-check)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new BadRequestException(`File size exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`);
+    }
+
+    try {
+      const url = await this.uploadService.uploadFile(file);
+      return { url };
+    } catch (error) {
+      console.error('❌ Error in uploadSingle controller:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error.message || 'Failed to upload file. Please try again later.',
+      );
+    }
   }
 
   @Post('multiple')
@@ -49,8 +78,45 @@ export class UploadController {
   async uploadMultiple(
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<{ urls: string[] }> {
-    const urls = await this.uploadService.uploadMultipleFiles(files);
-    return { urls };
+    // Validate files
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided');
+    }
+
+    // Validate file count
+    if (files.length > 20) {
+      throw new BadRequestException('Maximum 20 files allowed');
+    }
+
+    // Validate each file
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    for (const file of files) {
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        throw new BadRequestException(
+          `Invalid file type for ${file.originalname}. Allowed types: ${allowedMimeTypes.join(', ')}`,
+        );
+      }
+      if (file.size > maxSize) {
+        throw new BadRequestException(
+          `File ${file.originalname} exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`,
+        );
+      }
+    }
+
+    try {
+      const urls = await this.uploadService.uploadMultipleFiles(files);
+      return { urls };
+    } catch (error) {
+      console.error('❌ Error in uploadMultiple controller:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error.message || 'Failed to upload files. Please try again later.',
+      );
+    }
   }
 }
 

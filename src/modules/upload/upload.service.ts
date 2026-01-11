@@ -49,6 +49,15 @@ export class UploadService implements OnModuleInit {
     file: Express.Multer.File,
     folder?: string,
   ): Promise<string> {
+    // Validate file
+    if (!file) {
+      throw new Error('No file provided');
+    }
+
+    if (!file.buffer || file.buffer.length === 0) {
+      throw new Error('File buffer is empty');
+    }
+
     const storage = this.getStorageInstance();
 
     try {
@@ -57,27 +66,49 @@ export class UploadService implements OnModuleInit {
         throw new Error('Failed to get storage bucket. Please check Firebase Storage configuration.');
       }
 
-      const fileName = `${folder || 'uploads'}/${Date.now()}-${file.originalname}`;
+      // Sanitize filename
+      const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `${folder || 'uploads'}/${Date.now()}-${sanitizedFileName}`;
       const fileBuffer = file.buffer;
 
       const fileRef = bucket.file(fileName);
       
+      // Upload file
       await fileRef.save(fileBuffer, {
         metadata: {
-          contentType: file.mimetype,
+          contentType: file.mimetype || 'image/jpeg',
+          cacheControl: 'public, max-age=31536000',
         },
         public: true,
       });
 
       // Make file publicly accessible
-      await fileRef.makePublic();
+      try {
+        await fileRef.makePublic();
+      } catch (makePublicError: any) {
+        // If file is already public, ignore the error
+        if (!makePublicError.message?.includes('already public')) {
+          console.warn('⚠️ Warning: Could not make file public:', makePublicError.message);
+        }
+      }
 
       // Get public URL
       const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      console.log('✅ File uploaded successfully:', publicUrl);
       return publicUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error uploading file to Firebase Storage:', error);
-      throw new Error(`Failed to upload file: ${error.message}`);
+      
+      // Provide more specific error messages
+      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        throw new Error('Failed to connect to Firebase Storage. Please check your network connection.');
+      } else if (error.code === 'EACCES' || error.code === 'EPERM') {
+        throw new Error('Permission denied. Please check Firebase Storage permissions.');
+      } else if (error.message?.includes('bucket')) {
+        throw new Error('Firebase Storage bucket not found. Please check Firebase configuration.');
+      } else {
+        throw new Error(`Failed to upload file: ${error.message || 'Unknown error'}`);
+      }
     }
   }
 
