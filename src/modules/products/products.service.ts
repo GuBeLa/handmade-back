@@ -16,7 +16,8 @@ export class ProductsService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
-    const product = await this.firestoreService.create('products', {
+    // Calculate discountPercentage and isOnSale if discountPrice is provided
+    const productData: any = {
       ...createDto,
       slug: `${slug}-${Date.now()}`,
       sellerId,
@@ -27,7 +28,18 @@ export class ProductsService {
       views: 0,
       isActive: true,
       isFeatured: false,
-    });
+    };
+
+    // Calculate discount fields if discountPrice is provided
+    if (createDto.discountPrice && createDto.discountPrice > 0 && createDto.discountPrice < createDto.price) {
+      productData.discountPercentage = Math.round(((createDto.price - createDto.discountPrice) / createDto.price) * 100);
+      productData.isOnSale = true;
+    } else {
+      productData.discountPercentage = null;
+      productData.isOnSale = false;
+    }
+
+    const product = await this.firestoreService.create('products', productData);
 
     // Save images as subcollection or array
     if (createDto.images && createDto.images.length > 0) {
@@ -193,11 +205,39 @@ export class ProductsService {
     }
 
     // Extract images and variants separately to handle them differently
-    const { images, variants, ...updateData } = updateDto;
+    const { images, variants, discountPrice, price, ...updateData } = updateDto;
 
-    // Filter out undefined/null values from updateData before updating Firestore
+    // Calculate discountPercentage and isOnSale if discountPrice is provided
+    const finalUpdateData: any = { ...updateData };
+    
+    // Add price if provided
+    if (price !== undefined) {
+      finalUpdateData.price = price;
+    }
+    
+    // Handle discountPrice if provided
+    if (discountPrice !== undefined) {
+      const basePrice = finalUpdateData.price !== undefined ? finalUpdateData.price : product.price;
+      
+      // If discountPrice is null or 0, clear discount fields
+      if (discountPrice === null || discountPrice === 0) {
+        finalUpdateData.discountPrice = null;
+        finalUpdateData.discountPercentage = null;
+        finalUpdateData.isOnSale = false;
+      } 
+      // If discountPrice is valid and less than base price, calculate discount
+      else if (typeof discountPrice === 'number' && discountPrice > 0 && discountPrice < basePrice) {
+        finalUpdateData.discountPrice = discountPrice;
+        finalUpdateData.discountPercentage = Math.round(((basePrice - discountPrice) / basePrice) * 100);
+        finalUpdateData.isOnSale = true;
+      }
+      // If discountPrice is invalid (>= basePrice), don't set discount
+      // Leave discount fields unchanged if invalid
+    }
+
+    // Filter out undefined/null values from finalUpdateData before updating Firestore
     const filteredUpdateData = Object.fromEntries(
-      Object.entries(updateData).filter(([, value]) => value !== undefined && value !== null)
+      Object.entries(finalUpdateData).filter(([, value]) => value !== undefined)
     );
 
     // Update product fields (excluding images and variants and undefined values)
