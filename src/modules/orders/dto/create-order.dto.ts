@@ -100,5 +100,10 @@ export class CreateOrderDto {
   @ApiProperty({ required: false })
   @IsOptional()
   freeShipping?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  pickupLocation?: string; // Pickup location if deliveryMethod is PICKUP
 }
 

@@ -49,6 +49,8 @@ export class OrdersService {
         price,
         quantity: item.quantity,
         total: itemTotal,
+        sellerId: product.sellerId, // Add sellerId to each item
+        status: OrderStatus.PENDING, // Add item-level status
       };
 
       // Only add variant fields if they exist
@@ -163,6 +165,11 @@ export class OrdersService {
         orderData[key] = value;
       }
     });
+
+    // Add pickup location if delivery method is PICKUP
+    if (deliveryMethod === DeliveryMethod.PICKUP && createDto.pickupLocation) {
+      orderData.pickupLocation = createDto.pickupLocation;
+    }
 
     // Create order
     const order = await this.firestoreService.create('orders', orderData);
