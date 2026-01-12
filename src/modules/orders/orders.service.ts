@@ -53,6 +53,27 @@ export class OrdersService {
         status: OrderStatus.PENDING, // Add item-level status
       };
 
+      // Add seller pickup location if delivery method is PICKUP
+      if (deliveryMethod === DeliveryMethod.PICKUP && product.sellerId) {
+        try {
+          // Find seller profile by userId (sellerId is the userId)
+          const sellerProfile: any = await this.firestoreService.findOneBy(
+            'seller_profiles',
+            'userId',
+            product.sellerId,
+          );
+          if (sellerProfile && sellerProfile.address) {
+            orderItem.pickupLocation = sellerProfile.address;
+            // Also add shop name if available
+            if (sellerProfile.shopName) {
+              orderItem.pickupShopName = sellerProfile.shopName;
+            }
+          }
+        } catch (error) {
+          console.error('Error loading seller profile for pickup location:', error);
+        }
+      }
+
       // Only add variant fields if they exist
       if (item.variantSize) {
         orderItem.variantSize = item.variantSize;
