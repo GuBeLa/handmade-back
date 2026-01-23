@@ -24,6 +24,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { SearchModule } from './modules/search/search.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { SearchModule } from './modules/search/search.module';
     ExpensesModule,
     SubscriptionsModule,
     SearchModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

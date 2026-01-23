@@ -7,5 +7,9 @@ export enum PaymentMethod {
   INSTALLMENT_LIBERTY = 'installment_liberty',
   INSTALLMENT_CREDO = 'installment_credo',
   COD_CASH = 'cod_cash',
+  FLITT = 'flitt',
+  GOOGLE_PAY = 'google_pay',
+  APPLE_PAY = 'apple_pay',
+  CARD = 'card', // Generic card payment
 }
 

@@ -175,7 +175,7 @@ export class WishlistService {
       await this.updateWishlistSettings(userId, { isPublic: true });
     }
 
-    const shareUrl = `https://arteli.ge/wishlist/${settings.shareToken}`;
+    const shareUrl = `https://arteli.store/wishlist/${settings.shareToken}`;
     return {
       shareUrl,
       shareToken: settings.shareToken,
