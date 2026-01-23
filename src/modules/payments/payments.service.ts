@@ -61,9 +61,12 @@ export class PaymentsService {
       const SDK = loadFlittSDK();
       if (SDK) {
         try {
+          console.log('Initializing Flitt Node.js SDK...');
           // Initialize Flitt SDK with credentials
           // According to Flitt Node.js SDK documentation
           // Try different initialization patterns based on SDK structure
+          let initialized = false;
+          
           if (typeof SDK === 'function') {
             this.flittSDKInstance = new SDK({
               merchantId: this.flittMerchantId,
@@ -71,6 +74,7 @@ export class PaymentsService {
               apiKey: this.flittPaymentKey,
               testMode: this.flittTestMode,
             });
+            initialized = true;
           } else if (SDK.default && typeof SDK.default === 'function') {
             this.flittSDKInstance = new SDK.default({
               merchantId: this.flittMerchantId,
@@ -78,12 +82,29 @@ export class PaymentsService {
               apiKey: this.flittPaymentKey,
               testMode: this.flittTestMode,
             });
-          } else {
+            initialized = true;
+          } else if (SDK.FlittSDK && typeof SDK.FlittSDK === 'function') {
+            this.flittSDKInstance = new SDK.FlittSDK({
+              merchantId: this.flittMerchantId,
+              secretKey: this.flittCreditPrivateKey,
+              apiKey: this.flittPaymentKey,
+              testMode: this.flittTestMode,
+            });
+            initialized = true;
+          } else if (SDK.createOrder || SDK.getOrderStatus) {
             // SDK might be an object with methods, use it directly
             this.flittSDKInstance = SDK;
+            initialized = true;
           }
-        } catch (error) {
-          console.warn('Failed to initialize Flitt SDK, will use direct API calls:', error);
+          
+          if (initialized) {
+            console.log('✅ Flitt Node.js SDK initialized successfully');
+          } else {
+            console.warn('⚠️ Flitt SDK structure unknown, will use direct API calls');
+            return null;
+          }
+        } catch (error: any) {
+          console.warn('Failed to initialize Flitt SDK, will use direct API calls:', error.message);
           return null;
         }
       }
@@ -147,13 +168,15 @@ export class PaymentsService {
       }
 
       // Fallback to direct API call if SDK is not available or fails
+      // According to Flitt documentation: https://docs.flitt.com/api/mobile/apple-webview/
+      // Backend should POST to: https://pay.flitt.com/api/checkout/token
       const orderData = {
         merchant_id: this.flittMerchantId,
         order_id: dto.orderId,
         order_desc: dto.description,
         amount: amountInTetri,
         currency: dto.currency.toUpperCase(),
-        callback_url: `${apiBaseUrl}/payments/flitt/callback`,
+        server_callback_url: `${apiBaseUrl}/payments/flitt/callback`,
         ...(dto.customerPhone && { customer_phone: dto.customerPhone }),
         ...(dto.customerEmail && { customer_email: dto.customerEmail }),
       };
@@ -162,50 +185,75 @@ export class PaymentsService {
       const signature = this.generateFlittSignature(orderData);
 
       // Make API call to Flitt
-      // Try different endpoint patterns based on Flitt API documentation
+      // According to Flitt documentation: https://docs.flitt.com/api/mobile/apple-webview/
+      // The correct endpoint is: POST https://pay.flitt.com/api/checkout/token
       const endpoints = [
-        `${this.flittBaseUrl}/api/payment/create`,
-        `${this.flittBaseUrl}/payment/create`,
-        `${this.flittBaseUrl}/api/v1/payment/create`,
+        { url: `${this.flittBaseUrl}/api/checkout/token`, auth: 'signature' },
+        { url: `${this.flittBaseUrl}/api/checkout/token`, auth: 'bearer' },
       ];
       
       let lastError: any = null;
       let response: any = null;
       
-      for (const endpoint of endpoints) {
+      for (const endpointConfig of endpoints) {
         try {
-          console.log(`Trying Flitt endpoint: ${endpoint}`);
+          console.log(`Trying Flitt endpoint: ${endpointConfig.url} (auth: ${endpointConfig.auth})`);
+          
+          // Prepare headers based on authentication method
+          const headers: any = {
+            'Content-Type': 'application/json',
+          };
+          
+          if (endpointConfig.auth === 'bearer') {
+            headers['Authorization'] = `Bearer ${this.flittPaymentKey}`;
+          } else {
+            // Signature-based auth - signature is in the request body
+            headers['X-Merchant-Id'] = this.flittMerchantId;
+          }
+          
+          // Prepare request body
+          const requestBody: any = {
+            ...orderData,
+          };
+          
+          // Add signature to body for signature-based auth
+          if (endpointConfig.auth === 'signature') {
+            requestBody.signature = signature;
+          }
+          
           response = await axios.post(
-            endpoint,
+            endpointConfig.url,
+            requestBody,
             {
-              ...orderData,
-              signature,
-            },
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.flittPaymentKey}`,
-              },
-              timeout: 10000, // 10 second timeout
+              headers,
+              timeout: 10000,
             }
           );
           
           // If successful, break out of loop
           if (response && response.data) {
-            console.log(`✅ Successfully connected to Flitt API at: ${endpoint}`);
+            console.log(`✅ Successfully connected to Flitt API at: ${endpointConfig.url} (${endpointConfig.auth})`);
             break;
           }
         } catch (error: any) {
           lastError = error;
-          console.warn(`❌ Failed to connect to ${endpoint}:`, error.response?.status || error.message);
+          const status = error.response?.status;
+          const statusText = error.response?.statusText;
+          const errorData = error.response?.data;
+          console.warn(`❌ Failed to connect to ${endpointConfig.url} (${endpointConfig.auth}):`, {
+            status,
+            statusText,
+            error: errorData || error.message,
+          });
           // Continue to next endpoint
           continue;
         }
       }
       
-      // If all endpoints failed, throw error
+      // If all endpoints failed, throw error with detailed information
       if (!response || !response.data) {
-        throw lastError || new Error('All Flitt API endpoints failed');
+        console.error('❌ All Flitt API endpoints failed. Last error:', lastError?.response?.data || lastError?.message);
+        throw lastError || new Error('All Flitt API endpoints failed. Please check Flitt API documentation for correct endpoints.');
       }
 
       if (response.data && response.data.token) {
