@@ -162,19 +162,51 @@ export class PaymentsService {
       const signature = this.generateFlittSignature(orderData);
 
       // Make API call to Flitt
-      const response = await axios.post(
+      // Try different endpoint patterns based on Flitt API documentation
+      const endpoints = [
+        `${this.flittBaseUrl}/api/payment/create`,
+        `${this.flittBaseUrl}/payment/create`,
         `${this.flittBaseUrl}/api/v1/payment/create`,
-        {
-          ...orderData,
-          signature,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.flittPaymentKey}`,
-          },
+      ];
+      
+      let lastError: any = null;
+      let response: any = null;
+      
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying Flitt endpoint: ${endpoint}`);
+          response = await axios.post(
+            endpoint,
+            {
+              ...orderData,
+              signature,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.flittPaymentKey}`,
+              },
+              timeout: 10000, // 10 second timeout
+            }
+          );
+          
+          // If successful, break out of loop
+          if (response && response.data) {
+            console.log(`✅ Successfully connected to Flitt API at: ${endpoint}`);
+            break;
+          }
+        } catch (error: any) {
+          lastError = error;
+          console.warn(`❌ Failed to connect to ${endpoint}:`, error.response?.status || error.message);
+          // Continue to next endpoint
+          continue;
         }
-      );
+      }
+      
+      // If all endpoints failed, throw error
+      if (!response || !response.data) {
+        throw lastError || new Error('All Flitt API endpoints failed');
+      }
 
       if (response.data && response.data.token) {
         return {
@@ -251,28 +283,53 @@ export class PaymentsService {
       }
 
       // Fallback to direct API call
-      const response = await axios.get(
+      // Try different endpoint patterns
+      const statusEndpoints = [
+        `${this.flittBaseUrl}/api/payment/status/${dto.transactionId}`,
+        `${this.flittBaseUrl}/payment/status/${dto.transactionId}`,
         `${this.flittBaseUrl}/api/v1/payment/status/${dto.transactionId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.flittPaymentKey}`,
-          },
+      ];
+      
+      let response: any = null;
+      let lastError: any = null;
+      
+      for (const endpoint of statusEndpoints) {
+        try {
+          console.log(`Trying Flitt status endpoint: ${endpoint}`);
+          response = await axios.get(
+            endpoint,
+            {
+              headers: {
+                'Authorization': `Bearer ${this.flittPaymentKey}`,
+              },
+              timeout: 10000,
+            }
+          );
+          
+          if (response && response.data) {
+            console.log(`✅ Successfully connected to Flitt status API at: ${endpoint}`);
+            break;
+          }
+        } catch (error: any) {
+          lastError = error;
+          console.warn(`❌ Failed to connect to ${endpoint}:`, error.response?.status || error.message);
+          continue;
         }
-      );
-
-      if (response.data) {
-        const status = response.data.status;
-        const isSuccess = status === 'approved' || status === 'success' || status === 'completed';
-
-        return {
-          status: isSuccess ? 'completed' : status,
-          transactionId: dto.transactionId,
-          orderId: response.data.order_id,
-          amount: response.data.amount ? response.data.amount / 100 : null,
-        };
+      }
+      
+      if (!response || !response.data) {
+        throw lastError || new InternalServerErrorException('All Flitt status API endpoints failed');
       }
 
-      throw new InternalServerErrorException('Failed to verify payment');
+      const status = response.data.status;
+      const isSuccess = status === 'approved' || status === 'success' || status === 'completed';
+
+      return {
+        status: isSuccess ? 'completed' : status,
+        transactionId: dto.transactionId,
+        orderId: response.data.order_id,
+        amount: response.data.amount ? response.data.amount / 100 : null,
+      };
     } catch (error: any) {
       console.error('Failed to verify payment:', error);
       
