@@ -38,7 +38,7 @@ export class PaymentsService {
     this.flittMerchantId = this.configService.get<string>('FLITT_MERCHANT_ID') || '';
     this.flittPaymentKey = this.configService.get<string>('FLITT_PAYMENT_KEY') || '';
     this.flittCreditPrivateKey = this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '';
-    this.flittBaseUrl = this.configService.get<string>('FLITT_BASE_URL') || 'https://api.flitt.ge';
+    this.flittBaseUrl = this.configService.get<string>('FLITT_BASE_URL') || 'https://pay.flitt.com';
     this.flittTestMode = this.configService.get<string>('FLITT_TEST_MODE') === 'true';
     
     // Log configuration (without sensitive data)
