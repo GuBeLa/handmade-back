@@ -8,14 +8,15 @@ import axios from 'axios';
 // Lazy load Flitt Node.js SDK
 let FlittSDK: any = null;
 
-const loadFlittSDK = async () => {
+const loadFlittSDK = () => {
   if (FlittSDK) {
     return FlittSDK;
   }
   
   try {
-    // Try to import Flitt Node.js SDK
-    const flittModule = await import('@flittpayments/flitt-node-js-sdk');
+    // Try to require Flitt Node.js SDK (CommonJS module)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const flittModule = require('@flittpayments/flitt-node-js-sdk');
     FlittSDK = flittModule.default || flittModule.FlittSDK || flittModule;
     return FlittSDK;
   } catch (error) {
@@ -55,18 +56,36 @@ export class PaymentsService {
   /**
    * Get Flitt SDK instance
    */
-  private async getFlittSDK(): Promise<any> {
+  private getFlittSDK(): any {
     if (!this.flittSDKInstance) {
-      const SDK = await loadFlittSDK();
+      const SDK = loadFlittSDK();
       if (SDK) {
-        // Initialize Flitt SDK with credentials
-        // According to Flitt Node.js SDK documentation
-        this.flittSDKInstance = new SDK({
-          merchantId: this.flittMerchantId,
-          secretKey: this.flittCreditPrivateKey,
-          apiKey: this.flittPaymentKey,
-          testMode: this.flittTestMode,
-        });
+        try {
+          // Initialize Flitt SDK with credentials
+          // According to Flitt Node.js SDK documentation
+          // Try different initialization patterns based on SDK structure
+          if (typeof SDK === 'function') {
+            this.flittSDKInstance = new SDK({
+              merchantId: this.flittMerchantId,
+              secretKey: this.flittCreditPrivateKey,
+              apiKey: this.flittPaymentKey,
+              testMode: this.flittTestMode,
+            });
+          } else if (SDK.default && typeof SDK.default === 'function') {
+            this.flittSDKInstance = new SDK.default({
+              merchantId: this.flittMerchantId,
+              secretKey: this.flittCreditPrivateKey,
+              apiKey: this.flittPaymentKey,
+              testMode: this.flittTestMode,
+            });
+          } else {
+            // SDK might be an object with methods, use it directly
+            this.flittSDKInstance = SDK;
+          }
+        } catch (error) {
+          console.warn('Failed to initialize Flitt SDK, will use direct API calls:', error);
+          return null;
+        }
       }
     }
     return this.flittSDKInstance;
@@ -96,7 +115,7 @@ export class PaymentsService {
         : `http://localhost:${port}/api`;
 
       // Try to use Flitt Node.js SDK if available
-      const sdk = await this.getFlittSDK();
+      const sdk = this.getFlittSDK();
       
       if (sdk) {
         try {
@@ -210,7 +229,7 @@ export class PaymentsService {
       }
 
       // Try to use Flitt SDK if available
-      const sdk = await this.getFlittSDK();
+      const sdk = this.getFlittSDK();
       
       if (sdk) {
         try {
