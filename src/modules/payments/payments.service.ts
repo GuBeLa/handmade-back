@@ -1,9 +1,28 @@
 import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
+import axios from 'axios';
+
+// Lazy load Flitt Node.js SDK
+let FlittSDK: any = null;
+
+const loadFlittSDK = async () => {
+  if (FlittSDK) {
+    return FlittSDK;
+  }
+  
+  try {
+    // Try to import Flitt Node.js SDK
+    const flittModule = await import('@flittpayments/flitt-node-js-sdk');
+    FlittSDK = flittModule.default || flittModule.FlittSDK || flittModule;
+    return FlittSDK;
+  } catch (error) {
+    console.warn('Flitt Node.js SDK not available. Using direct API calls.', error);
+    return null;
+  }
+};
 
 @Injectable()
 export class PaymentsService {
@@ -12,6 +31,7 @@ export class PaymentsService {
   private readonly flittCreditPrivateKey: string;
   private readonly flittBaseUrl: string;
   private readonly flittTestMode: boolean;
+  private flittSDKInstance: any = null;
 
   constructor(private configService: ConfigService) {
     this.flittMerchantId = this.configService.get<string>('FLITT_MERCHANT_ID') || '';
@@ -19,16 +39,50 @@ export class PaymentsService {
     this.flittCreditPrivateKey = this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '';
     this.flittBaseUrl = this.configService.get<string>('FLITT_BASE_URL') || 'https://api.flitt.ge';
     this.flittTestMode = this.configService.get<string>('FLITT_TEST_MODE') === 'true';
+    
+    // Log configuration (without sensitive data)
+    if (!this.flittMerchantId || !this.flittPaymentKey || !this.flittCreditPrivateKey) {
+      console.warn('⚠️ Flitt credentials not fully configured. Please check environment variables.');
+    } else {
+      console.log('✅ Flitt Payment Service initialized:', {
+        merchantId: this.flittMerchantId.substring(0, 4) + '...',
+        baseUrl: this.flittBaseUrl,
+        testMode: this.flittTestMode,
+      });
+    }
+  }
+
+  /**
+   * Get Flitt SDK instance
+   */
+  private async getFlittSDK(): Promise<any> {
+    if (!this.flittSDKInstance) {
+      const SDK = await loadFlittSDK();
+      if (SDK) {
+        // Initialize Flitt SDK with credentials
+        // According to Flitt Node.js SDK documentation
+        this.flittSDKInstance = new SDK({
+          merchantId: this.flittMerchantId,
+          secretKey: this.flittCreditPrivateKey,
+          apiKey: this.flittPaymentKey,
+          testMode: this.flittTestMode,
+        });
+      }
+    }
+    return this.flittSDKInstance;
   }
 
   /**
    * Create payment token for Flitt SDK
    * This token is used by mobile app to process payment
+   * According to Flitt documentation: backend creates token, mobile app uses it
    */
   async createPaymentToken(dto: CreatePaymentTokenDto) {
     try {
       // Only Flitt payment method is supported for now
-      if (dto.paymentMethod !== PaymentMethod.FLITT) {
+      if (dto.paymentMethod !== PaymentMethod.FLITT && 
+          dto.paymentMethod !== PaymentMethod.GOOGLE_PAY && 
+          dto.paymentMethod !== PaymentMethod.APPLE_PAY) {
         throw new BadRequestException(`Payment method ${dto.paymentMethod} is not yet supported`);
       }
 
@@ -36,14 +90,44 @@ export class PaymentsService {
       const amountInTetri = Math.round(dto.amount * 100);
 
       // Get API base URL for callback
-      // Use the full backend URL for callback
       const port = this.configService.get<string>('PORT') || '3005';
       const apiBaseUrl = process.env.NODE_ENV === 'production' 
         ? this.configService.get<string>('API_BASE_URL') || `https://api.handmade-marketplace.ge/api`
         : `http://localhost:${port}/api`;
 
-      // Create payment order using Flitt API
-      // According to Flitt documentation, we need to create an order and get a token
+      // Try to use Flitt Node.js SDK if available
+      const sdk = await this.getFlittSDK();
+      
+      if (sdk) {
+        try {
+          // Use Flitt SDK to create payment token
+          // According to Flitt Node.js SDK documentation
+          const orderData = {
+            amount: amountInTetri,
+            currency: dto.currency.toUpperCase(),
+            orderId: dto.orderId,
+            description: dto.description,
+            callbackUrl: `${apiBaseUrl}/payments/flitt/callback`,
+            ...(dto.customerPhone && { customerPhone: dto.customerPhone }),
+            ...(dto.customerEmail && { customerEmail: dto.customerEmail }),
+          };
+
+          // Create order using Flitt SDK
+          const result = await sdk.createOrder(orderData);
+          
+          if (result && result.token) {
+            return {
+              token: result.token,
+              orderId: dto.orderId,
+              paymentUrl: result.paymentUrl,
+            };
+          }
+        } catch (sdkError: any) {
+          console.warn('Flitt SDK method failed, falling back to direct API:', sdkError.message);
+        }
+      }
+
+      // Fallback to direct API call if SDK is not available or fails
       const orderData = {
         merchant_id: this.flittMerchantId,
         order_id: dto.orderId,
@@ -56,7 +140,6 @@ export class PaymentsService {
       };
 
       // Generate signature for Flitt API
-      // Flitt uses signature for request verification
       const signature = this.generateFlittSignature(orderData);
 
       // Make API call to Flitt
@@ -85,14 +168,33 @@ export class PaymentsService {
       throw new InternalServerErrorException('Failed to create payment token');
     } catch (error: any) {
       console.error('Failed to create Flitt payment token:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url,
+        flittBaseUrl: this.flittBaseUrl,
+        hasMerchantId: !!this.flittMerchantId,
+        hasPaymentKey: !!this.flittPaymentKey,
+        hasCreditKey: !!this.flittCreditPrivateKey,
+      });
       
       if (error.response) {
-        throw new BadRequestException(
-          error.response.data?.message || 'Failed to create payment token'
+        const errorMessage = error.response.data?.message || 
+                            error.response.data?.error || 
+                            `Flitt API error: ${error.response.status}`;
+        throw new BadRequestException(errorMessage);
+      }
+      
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        throw new InternalServerErrorException(
+          `Cannot connect to Flitt API at ${this.flittBaseUrl}. Please check FLITT_BASE_URL configuration.`
         );
       }
       
-      throw new InternalServerErrorException('Failed to create payment token');
+      throw new InternalServerErrorException(
+        error.message || 'Failed to create payment token. Please check Flitt credentials and API configuration.'
+      );
     }
   }
 
@@ -101,11 +203,35 @@ export class PaymentsService {
    */
   async verifyPayment(dto: VerifyPaymentDto) {
     try {
-      if (dto.paymentMethod !== PaymentMethod.FLITT) {
+      if (dto.paymentMethod !== PaymentMethod.FLITT && 
+          dto.paymentMethod !== PaymentMethod.GOOGLE_PAY && 
+          dto.paymentMethod !== PaymentMethod.APPLE_PAY) {
         throw new BadRequestException(`Payment method ${dto.paymentMethod} is not yet supported`);
       }
 
-      // Get order status from Flitt API
+      // Try to use Flitt SDK if available
+      const sdk = await this.getFlittSDK();
+      
+      if (sdk) {
+        try {
+          // Use Flitt SDK to get order status
+          const status = await sdk.getOrderStatus(dto.transactionId);
+          
+          if (status) {
+            const isSuccess = status.status === 'approved' || status.status === 'success' || status.status === 'completed';
+            return {
+              status: isSuccess ? 'completed' : status.status,
+              transactionId: dto.transactionId,
+              orderId: status.orderId,
+              amount: status.amount ? status.amount / 100 : null,
+            };
+          }
+        } catch (sdkError: any) {
+          console.warn('Flitt SDK method failed, falling back to direct API:', sdkError.message);
+        }
+      }
+
+      // Fallback to direct API call
       const response = await axios.get(
         `${this.flittBaseUrl}/api/v1/payment/status/${dto.transactionId}`,
         {
@@ -174,6 +300,7 @@ export class PaymentsService {
   /**
    * Generate signature for Flitt API request
    * Flitt uses HMAC-SHA256 signature for request verification
+   * According to Flitt documentation
    */
   private generateFlittSignature(data: any): string {
     const crypto = require('crypto');
@@ -184,7 +311,7 @@ export class PaymentsService {
       .map(key => `${key}=${data[key]}`)
       .join('&');
     
-    // Generate HMAC-SHA256 signature
+    // Generate HMAC-SHA256 signature using credit private key
     const signature = crypto
       .createHmac('sha256', this.flittCreditPrivateKey)
       .update(signatureString)
