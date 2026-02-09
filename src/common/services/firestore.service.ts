@@ -6,40 +6,23 @@ import { Timestamp } from 'firebase-admin/firestore';
 @Injectable()
 export class FirestoreService {
   private db: Firestore | null = null;
-  /** When true, Firebase/Firestore was checked and is unavailable (e.g. on Vercel without credentials) */
-  private unavailable = false;
 
   constructor(private firebaseConfig: FirebaseConfig) {}
 
-  /** Returns Firestore or null if not configured. Does not throw. */
-  getDbOrNull(): Firestore | null {
-    if (this.unavailable) return null;
-    if (this.db) return this.db;
-    try {
-      this.db = this.firebaseConfig.getFirestore();
-      if (!this.db) this.unavailable = true;
-      return this.db;
-    } catch (error) {
-      this.unavailable = true;
-      this.db = null;
-      if (!(error as any)._firestoreLogged) {
-        (error as any)._firestoreLogged = true;
-        console.warn('Firestore not available (Firebase not configured or failed). Subscription/plan reads will return empty.');
-      }
-      return null;
-    }
-  }
-
-  isAvailable(): boolean {
-    return this.getDbOrNull() !== null;
-  }
-
   private getDb(): Firestore {
-    const db = this.getDbOrNull();
-    if (!db) {
-      throw new Error('Firestore is not initialized. Check Firebase configuration.');
+    // Lazy initialization - get Firestore when first needed
+    if (!this.db) {
+      try {
+        this.db = this.firebaseConfig.getFirestore();
+        if (!this.db) {
+          throw new Error('Firestore is not initialized. Check Firebase configuration.');
+        }
+      } catch (error) {
+        console.error('❌ Failed to get Firestore instance:', error);
+        throw new Error(`Firestore service initialization failed: ${error.message}`);
+      }
     }
-    return db;
+    return this.db;
   }
 
   collection(collectionName: string): CollectionReference {
@@ -54,7 +37,6 @@ export class FirestoreService {
   }
 
   async create<T = any>(collectionName: string, data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): Promise<T> {
-    if (!this.getDbOrNull()) throw new Error('Firestore is not configured. Cannot create.');
     const docRef = this.doc(collectionName);
     const now = Timestamp.now();
     const docData = {
@@ -68,7 +50,6 @@ export class FirestoreService {
   }
 
   async createWithId<T = any>(collectionName: string, id: string, data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): Promise<T> {
-    if (!this.getDbOrNull()) throw new Error('Firestore is not configured. Cannot create.');
     const docRef = this.doc(collectionName, id);
     const docSnapshot = await docRef.get();
     
@@ -89,7 +70,6 @@ export class FirestoreService {
   }
 
   async findById<T = any>(collectionName: string, id: string): Promise<T | null> {
-    if (!this.getDbOrNull()) return null;
     const docRef = this.doc(collectionName, id);
     const doc = await docRef.get();
     if (!doc.exists) {
@@ -99,7 +79,6 @@ export class FirestoreService {
   }
 
   async findAll<T = any>(collectionName: string, query?: (ref: CollectionReference) => Query): Promise<T[]> {
-    if (!this.getDbOrNull()) return [];
     let collectionRef: CollectionReference | Query = this.collection(collectionName);
     if (query) {
       collectionRef = query(this.collection(collectionName));
@@ -109,7 +88,6 @@ export class FirestoreService {
   }
 
   async update<T>(collectionName: string, id: string, data: Partial<T>): Promise<T> {
-    if (!this.getDbOrNull()) throw new Error('Firestore is not configured. Cannot update.');
     const docRef = this.doc(collectionName, id);
     await docRef.update({
       ...data,
@@ -120,13 +98,11 @@ export class FirestoreService {
   }
 
   async delete(collectionName: string, id: string): Promise<void> {
-    if (!this.getDbOrNull()) throw new Error('Firestore is not configured. Cannot delete.');
     const docRef = this.doc(collectionName, id);
     await docRef.delete();
   }
 
   async findOneBy<T = any>(collectionName: string, field: string, value: any): Promise<T | null> {
-    if (!this.getDbOrNull()) return null;
     const snapshot = await this.collection(collectionName)
       .where(field, '==', value)
       .limit(1)
@@ -141,7 +117,6 @@ export class FirestoreService {
   }
 
   async findManyBy<T = any>(collectionName: string, field: string, value: any): Promise<T[]> {
-    if (!this.getDbOrNull()) return [];
     const snapshot = await this.collection(collectionName)
       .where(field, '==', value)
       .get();
@@ -156,7 +131,6 @@ export class FirestoreService {
     field2: string,
     value2: any,
   ): Promise<T | null> {
-    if (!this.getDbOrNull()) return null;
     const snapshot = await this.collection(collectionName)
       .where(field1, '==', value1)
       .where(field2, '==', value2)
