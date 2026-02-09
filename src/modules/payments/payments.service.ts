@@ -25,49 +25,30 @@ const loadFlittSDK = () => {
   }
 };
 
-/** Flitt official test credentials (https://docs.flitt.com/api/testing/) — work only with merchant 1549901 */
-const FLITT_TEST_MERCHANT_ID = 1549901;
-const FLITT_TEST_SECRET = 'test';
-
 @Injectable()
 export class PaymentsService {
   private readonly flittMerchantId: string;
   private readonly flittPaymentKey: string;
   private readonly flittCreditPrivateKey: string;
-  private readonly flittSignatureSecret: string;
+  /** Secret used for request signature — from Flitt Portal → Technical Settings → Secret key */
+  private readonly flittSecretKey: string;
   private readonly flittBaseUrl: string;
-  private readonly flittTestMode: boolean;
-  /** When test mode: use official test merchant + secret so token always works without portal setup */
-  private readonly flittEffectiveMerchantId: number;
-  private readonly flittEffectiveSecret: string;
   private flittSDKInstance: any = null;
 
   constructor(private configService: ConfigService) {
-    this.flittMerchantId = this.configService.get<string>('FLITT_MERCHANT_ID') || '';
-    this.flittPaymentKey = this.configService.get<string>('FLITT_PAYMENT_KEY') || '';
-    this.flittCreditPrivateKey = this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '';
-    const secretKey = this.configService.get<string>('FLITT_SECRET_KEY') || this.flittCreditPrivateKey;
-    this.flittSignatureSecret = (secretKey || '').trim();
-    this.flittBaseUrl = this.configService.get<string>('FLITT_BASE_URL') || 'https://pay.flitt.com';
-    this.flittTestMode = this.configService.get<string>('FLITT_TEST_MODE') === 'true';
+    this.flittMerchantId = (this.configService.get<string>('FLITT_MERCHANT_ID') || '').trim();
+    this.flittPaymentKey = (this.configService.get<string>('FLITT_PAYMENT_KEY') || '').trim();
+    this.flittCreditPrivateKey = (this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '').trim();
+    // Signature: use FLITT_SECRET_KEY from Flitt Portal; fallback to FLITT_CREDIT_PRIVATE_KEY only if unset
+    const secretKey = this.configService.get<string>('FLITT_SECRET_KEY') || this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '';
+    this.flittSecretKey = secretKey.trim();
+    this.flittBaseUrl = (this.configService.get<string>('FLITT_BASE_URL') || 'https://pay.flitt.com').replace(/\/$/, '');
 
-    if (this.flittTestMode) {
-      this.flittEffectiveMerchantId = FLITT_TEST_MERCHANT_ID;
-      this.flittEffectiveSecret = FLITT_TEST_SECRET;
-      console.log('✅ Flitt Payment Service (TEST MODE): using official test merchant 1549901 + secret "test"');
+    if (!this.flittMerchantId || !this.flittSecretKey) {
+      console.warn('⚠️ Flitt: FLITT_MERCHANT_ID and FLITT_SECRET_KEY (or FLITT_CREDIT_PRIVATE_KEY) are required for payments.');
     } else {
-      const num = parseInt(this.flittMerchantId, 10);
-      this.flittEffectiveMerchantId = isNaN(num) ? 0 : num;
-      this.flittEffectiveSecret = this.flittSignatureSecret;
-    }
-
-    if (!this.flittMerchantId || !this.flittPaymentKey || !this.flittCreditPrivateKey) {
-      if (!this.flittTestMode) {
-        console.warn('⚠️ Flitt credentials not fully configured. Please check environment variables.');
-      }
-    } else if (!this.flittTestMode) {
       console.log('✅ Flitt Payment Service initialized:', {
-        merchantId: this.flittMerchantId.substring(0, 4) + '...',
+        merchantId: this.flittMerchantId,
         baseUrl: this.flittBaseUrl,
       });
     }
@@ -75,12 +56,13 @@ export class PaymentsService {
 
   /**
    * Get Flitt SDK instance (FlittPay from @flittpayments/flitt-node-js-sdk)
-   * Uses effective merchant + secret (test mode = 1549901 + "test").
+   * Uses FLITT_MERCHANT_ID and FLITT_SECRET_KEY from env (same as official SDK).
    */
   private getFlittSDK(): any {
     if (!this.flittSDKInstance) {
       const SDK = loadFlittSDK();
-      if (SDK && this.flittEffectiveMerchantId > 0 && this.flittEffectiveSecret) {
+      const merchantIdNum = parseInt(this.flittMerchantId, 10);
+      if (SDK && !isNaN(merchantIdNum) && merchantIdNum > 0 && this.flittSecretKey) {
         try {
           console.log('Initializing Flitt Node.js SDK...');
           const FlittPay = typeof SDK === 'function' ? SDK : SDK.default || SDK.FlittSDK || SDK;
@@ -88,10 +70,10 @@ export class PaymentsService {
             console.warn('⚠️ Flitt SDK export not found, will use direct API calls');
             return null;
           }
-          const baseUrl = (this.flittBaseUrl || 'https://pay.flitt.com').replace(/^https?:\/\//, '').replace(/\/$/, '');
+          const baseUrl = this.flittBaseUrl.replace(/^https?:\/\//, '');
           this.flittSDKInstance = new FlittPay({
-            merchantId: this.flittEffectiveMerchantId,
-            secretKey: this.flittEffectiveSecret,
+            merchantId: merchantIdNum,
+            secretKey: this.flittSecretKey,
             baseUrl,
           });
           console.log('✅ Flitt Node.js SDK initialized successfully');
@@ -155,16 +137,18 @@ export class PaymentsService {
         }
       }
 
-      // Fallback to direct API call if SDK is not available or fails
-      // Uses effective merchant + secret (test mode = 1549901 + "test")
-      if (!this.flittEffectiveMerchantId || !this.flittEffectiveSecret) {
-        throw new BadRequestException('Flitt credentials not configured. For test set FLITT_TEST_MODE=true.');
+      // Fallback to direct API call if SDK is not available or fails (same params + signature as SDK)
+      const merchantIdNum = parseInt(this.flittMerchantId, 10);
+      if (!this.flittMerchantId || isNaN(merchantIdNum) || !this.flittSecretKey) {
+        throw new BadRequestException(
+          'Flitt credentials not configured. Set FLITT_MERCHANT_ID and FLITT_SECRET_KEY (from Flitt Portal → Technical Settings).'
+        );
       }
 
       const requestParams: Record<string, string | number> = {
         amount: amountInTetri,
         currency: dto.currency.toUpperCase(),
-        merchant_id: this.flittEffectiveMerchantId,
+        merchant_id: merchantIdNum,
         order_desc: dto.description,
         order_id: dto.orderId,
         server_callback_url: `${apiBaseUrl}/payments/flitt/callback`,
@@ -173,7 +157,7 @@ export class PaymentsService {
         requestParams.customer_phone = dto.customerPhone;
       }
       if (dto.customerEmail) {
-        requestParams.customer_email = dto.customerEmail;
+        requestParams.sender_email = dto.customerEmail;
       }
 
       const signature = this.generateFlittSignature(requestParams);
@@ -184,9 +168,9 @@ export class PaymentsService {
 
       let response: any = null;
       try {
-        console.log(`Calling Flitt API: ${this.flittBaseUrl}/api/checkout/token (body wrapped in "request")`);
+        console.log(`Calling Flitt API: ${this.flittBaseUrl}/api/checkout/token/ (body wrapped in "request")`);
         response = await axios.post(
-          `${this.flittBaseUrl}/api/checkout/token`,
+          `${this.flittBaseUrl}/api/checkout/token/`,
           requestBody,
           {
             headers: { 'Content-Type': 'application/json' },
@@ -404,29 +388,22 @@ export class PaymentsService {
   }
 
   /**
-   * Generate signature for Flitt API request
-   * Flitt uses SHA1(secret_key|param1|param2|...) with params in alphabetic order, empty excluded.
-   * Uses effective secret (test mode = "test"). Docs: https://docs.flitt.com/api/building-signature
+   * Generate signature for Flitt API request (matches official SDK util.js genSignature)
+   * https://github.com/flittpayments/node-js-sdk/blob/main/lib/util.js
+   * Sign string: secret + '|' + Object.values(ordered).join('|') with keys sorted, empty string and signature key excluded.
    */
   private generateFlittSignature(params: Record<string, string | number>): string {
     const crypto = require('crypto');
-    const secretKey = this.flittEffectiveSecret;
-
-    const sortedKeys = Object.keys(params).filter(k => k !== 'signature').sort();
-    const parts: string[] = [secretKey];
-    for (const key of sortedKeys) {
-      const v = params[key];
-      // Include 0; exclude only empty string, null, undefined (per Flitt: "parameter with value 0 is not null")
-      if (v !== '' && v !== undefined && v !== null) {
-        parts.push(String(v));
-      }
-    }
-    const signatureString = parts.join('|');
-    if (this.flittTestMode) {
-      console.log('Flitt signature params (keys):', sortedKeys.join(', '));
-    }
-    const hash = crypto.createHash('sha1').update(signatureString, 'utf8').digest('hex');
-    return hash.toLowerCase();
+    const ordered: Record<string, string | number> = {};
+    Object.keys(params)
+      .sort()
+      .forEach((key) => {
+        if (key !== 'signature' && key !== 'response_signature_string' && params[key] !== '') {
+          ordered[key] = params[key];
+        }
+      });
+    const signString = this.flittSecretKey + '|' + Object.values(ordered).join('|');
+    return crypto.createHash('sha1').update(signString, 'utf8').digest('hex');
   }
 
   /**
