@@ -18,9 +18,13 @@ export class SubscriptionsService {
   }
 
   /**
-   * Initialize default subscription plans if they don't exist
+   * Initialize default subscription plans if they don't exist (only when Firestore is available)
    */
   private async initializePlansIfNeeded(): Promise<void> {
+    if (!this.firestoreService.isAvailable()) {
+      this.logger.warn('Firestore not configured; subscription plans will not be loaded.');
+      return;
+    }
     try {
       const existingPlans = await this.firestoreService.findAll<SubscriptionPlan>('subscription_plans');
       if (existingPlans.length > 0) {
@@ -132,7 +136,7 @@ export class SubscriptionsService {
 
       this.logger.log('Default subscription plans initialized');
     } catch (error) {
-      this.logger.error('Error initializing subscription plans:', error);
+      this.logger.error('Error initializing subscription plans:', error?.message ?? error);
     }
   }
 
