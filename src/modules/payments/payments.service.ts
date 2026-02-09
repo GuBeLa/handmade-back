@@ -59,7 +59,8 @@ export class PaymentsService {
   }
 
   /**
-   * Get Flitt SDK instance
+   * Get Flitt SDK instance (FlittPay from @flittpayments/flitt-node-js-sdk)
+   * SDK constructor: { merchantId, secretKey, baseUrl? } — see https://github.com/flittpayments/node-js-sdk
    */
   private getFlittSDK(): any {
     if (!this.flittSDKInstance) {
@@ -67,47 +68,24 @@ export class PaymentsService {
       if (SDK) {
         try {
           console.log('Initializing Flitt Node.js SDK...');
-          // Initialize Flitt SDK with credentials
-          // According to Flitt Node.js SDK documentation
-          // Try different initialization patterns based on SDK structure
-          let initialized = false;
-          
-          if (typeof SDK === 'function') {
-            this.flittSDKInstance = new SDK({
-              merchantId: this.flittMerchantId,
-              secretKey: this.flittCreditPrivateKey,
-              apiKey: this.flittPaymentKey,
-              testMode: this.flittTestMode,
-            });
-            initialized = true;
-          } else if (SDK.default && typeof SDK.default === 'function') {
-            this.flittSDKInstance = new SDK.default({
-              merchantId: this.flittMerchantId,
-              secretKey: this.flittCreditPrivateKey,
-              apiKey: this.flittPaymentKey,
-              testMode: this.flittTestMode,
-            });
-            initialized = true;
-          } else if (SDK.FlittSDK && typeof SDK.FlittSDK === 'function') {
-            this.flittSDKInstance = new SDK.FlittSDK({
-              merchantId: this.flittMerchantId,
-              secretKey: this.flittCreditPrivateKey,
-              apiKey: this.flittPaymentKey,
-              testMode: this.flittTestMode,
-            });
-            initialized = true;
-          } else if (SDK.createOrder || SDK.getOrderStatus) {
-            // SDK might be an object with methods, use it directly
-            this.flittSDKInstance = SDK;
-            initialized = true;
-          }
-          
-          if (initialized) {
-            console.log('✅ Flitt Node.js SDK initialized successfully');
-          } else {
-            console.warn('⚠️ Flitt SDK structure unknown, will use direct API calls');
+          const FlittPay = typeof SDK === 'function' ? SDK : SDK.default || SDK.FlittSDK || SDK;
+          if (typeof FlittPay !== 'function') {
+            console.warn('⚠️ Flitt SDK export not found, will use direct API calls');
             return null;
           }
+          const merchantIdNum = parseInt(this.flittMerchantId, 10);
+          if (isNaN(merchantIdNum)) {
+            console.warn('⚠️ Flitt MERCHANT_ID must be numeric, will use direct API calls');
+            return null;
+          }
+          // baseUrl = hostname without protocol (SDK uses it as https hostname)
+          const baseUrl = (this.flittBaseUrl || 'https://pay.flitt.com').replace(/^https?:\/\//, '').replace(/\/$/, '');
+          this.flittSDKInstance = new FlittPay({
+            merchantId: merchantIdNum,
+            secretKey: this.flittSignatureSecret,
+            baseUrl,
+          });
+          console.log('✅ Flitt Node.js SDK initialized successfully');
         } catch (error: any) {
           console.warn('Failed to initialize Flitt SDK, will use direct API calls:', error.message);
           return null;
@@ -140,35 +118,31 @@ export class PaymentsService {
         ? this.configService.get<string>('API_BASE_URL') || `https://api.handmade-marketplace.ge/api`
         : `http://localhost:${port}/api`;
 
-      // Try to use Flitt Node.js SDK if available
+      // Try to use Flitt Node.js SDK first (same signature/request as official SDK)
       const sdk = this.getFlittSDK();
-      
-      if (sdk) {
+      if (sdk && typeof sdk.CheckoutToken === 'function') {
         try {
-          // Use Flitt SDK to create payment token
-          // According to Flitt Node.js SDK documentation
-          const orderData = {
-            amount: amountInTetri,
+          // CheckoutToken(data) — params: order_id, order_desc, currency, amount, server_callback_url (https://github.com/flittpayments/node-js-sdk)
+          const requestData: Record<string, string | number> = {
+            order_id: dto.orderId,
+            order_desc: dto.description,
             currency: dto.currency.toUpperCase(),
-            orderId: dto.orderId,
-            description: dto.description,
-            callbackUrl: `${apiBaseUrl}/payments/flitt/callback`,
-            ...(dto.customerPhone && { customerPhone: dto.customerPhone }),
-            ...(dto.customerEmail && { customerEmail: dto.customerEmail }),
+            amount: amountInTetri,
+            server_callback_url: `${apiBaseUrl}/payments/flitt/callback`,
           };
+          if (dto.customerPhone) requestData.customer_phone = dto.customerPhone;
+          if (dto.customerEmail) requestData.sender_email = dto.customerEmail;
 
-          // Create order using Flitt SDK
-          const result = await sdk.createOrder(orderData);
-          
+          const result = await sdk.CheckoutToken(requestData);
           if (result && result.token) {
             return {
               token: result.token,
               orderId: dto.orderId,
-              paymentUrl: result.paymentUrl,
+              ...(result.checkout_url && { paymentUrl: result.checkout_url }),
             };
           }
         } catch (sdkError: any) {
-          console.warn('Flitt SDK method failed, falling back to direct API:', sdkError.message);
+          console.warn('Flitt SDK CheckoutToken failed, falling back to direct API:', sdkError?.message || sdkError);
         }
       }
 
