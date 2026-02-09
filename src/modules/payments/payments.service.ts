@@ -25,12 +25,12 @@ const loadFlittSDK = () => {
   }
 };
 
-/** Strip surrounding single/double quotes from env value (e.g. 'test' or "key" from .env/Lambda) */
+/** Strip surrounding quotes and any newline/CR from env value (Vercel/.env/Lambda) */
 function stripEnvQuotes(value: string): string {
-  const s = (value || '').trim();
+  let s = (value || '').replace(/\r\n/g, '').replace(/\n/g, '').replace(/\r/g, '').trim();
   if (s.length >= 2) {
     if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
-      return s.slice(1, -1).trim();
+      s = s.slice(1, -1).trim();
     }
   }
   return s;
@@ -170,25 +170,26 @@ export class PaymentsService {
         );
       }
 
-      const requestParams: Record<string, string | number> = {
-        amount: amountInTetri,
+      // Use string values for all params so signature matches what Flitt server sees from JSON body
+      const serverCallbackUrl = `${apiBaseUrl}/payments/flitt/callback`;
+      const requestParams: Record<string, string> = {
+        amount: String(amountInTetri),
         currency: dto.currency.toUpperCase(),
-        merchant_id: merchantIdNum,
+        merchant_id: String(merchantIdNum),
         order_desc: dto.description,
         order_id: dto.orderId,
-        server_callback_url: `${apiBaseUrl}/payments/flitt/callback`,
+        server_callback_url: serverCallbackUrl,
       };
       if (dto.customerPhone) {
-        requestParams.customer_phone = dto.customerPhone;
+        requestParams.customer_phone = String(dto.customerPhone).trim();
       }
       if (dto.customerEmail) {
-        requestParams.sender_email = dto.customerEmail;
+        requestParams.sender_email = String(dto.customerEmail).trim();
       }
 
       const signature = this.generateFlittSignature(requestParams);
       requestParams.signature = signature;
 
-      // Flitt expects root element "request" (docs: https://docs.flitt.com/api/request)
       const requestBody = { request: requestParams };
 
       let response: any = null;
@@ -417,25 +418,19 @@ export class PaymentsService {
    * https://github.com/flittpayments/node-js-sdk/blob/main/lib/util.js
    * Sign string: secret + '|' + Object.values(ordered).join('|'), keys sorted, exclude '' and signature keys.
    */
-  private generateFlittSignature(params: Record<string, string | number>): string {
+  private generateFlittSignature(params: Record<string, string | number | undefined>): string {
     const crypto = require('crypto');
-    const ordered: Record<string, string | number> = {};
+    const ordered: Record<string, string> = {};
     Object.keys(params)
       .sort()
       .forEach((key) => {
-        if (params[key] !== '' && key !== 'signature' && key !== 'response_signature_string') {
-          ordered[key] = params[key];
+        if (key !== 'signature' && key !== 'response_signature_string' && params[key] !== '' && params[key] != null) {
+          ordered[key] = String(params[key]);
         }
       });
     const signString = this.flittSecretKey + '|' + Object.values(ordered).join('|');
     const hash = crypto.createHash('sha1').update(signString, 'utf8').digest('hex');
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('Flitt signature debug:', {
-        paramKeys: Object.keys(ordered).sort(),
-        signStringLength: signString.length,
-        secretLength: this.flittSecretKey.length,
-      });
-    }
+    console.log('Flitt sign:', { paramKeys: Object.keys(ordered).sort(), secretLen: this.flittSecretKey.length });
     return hash;
   }
 
