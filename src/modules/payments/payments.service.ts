@@ -50,11 +50,11 @@ export class PaymentsService {
     this.flittMerchantId = stripEnvQuotes(this.configService.get<string>('FLITT_MERCHANT_ID') || '');
     this.flittPaymentKey = stripEnvQuotes(this.configService.get<string>('FLITT_PAYMENT_KEY') || '');
     this.flittCreditPrivateKey = stripEnvQuotes(this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '');
-    // Checkout/token signature: use Secret key if set; else Payment key (portal "Payment key"); else Credit private key
+    // Checkout/token signature: use Secret key if set; else Credit private key (portal "Credit private key"); else Payment key
     const rawSecret =
       this.configService.get<string>('FLITT_SECRET_KEY') ||
-      this.configService.get<string>('FLITT_PAYMENT_KEY') ||
       this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') ||
+      this.configService.get<string>('FLITT_PAYMENT_KEY') ||
       '';
     this.flittSecretKey = stripEnvQuotes(rawSecret);
     this.flittBaseUrl = (this.configService.get<string>('FLITT_BASE_URL') || 'https://pay.flitt.com').replace(/\/$/, '');
