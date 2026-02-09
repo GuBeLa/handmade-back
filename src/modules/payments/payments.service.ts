@@ -25,6 +25,17 @@ const loadFlittSDK = () => {
   }
 };
 
+/** Strip surrounding single/double quotes from env value (e.g. 'test' or "key" from .env/Lambda) */
+function stripEnvQuotes(value: string): string {
+  const s = (value || '').trim();
+  if (s.length >= 2) {
+    if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
+      return s.slice(1, -1).trim();
+    }
+  }
+  return s;
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly flittMerchantId: string;
@@ -36,20 +47,34 @@ export class PaymentsService {
   private flittSDKInstance: any = null;
 
   constructor(private configService: ConfigService) {
-    this.flittMerchantId = (this.configService.get<string>('FLITT_MERCHANT_ID') || '').trim();
-    this.flittPaymentKey = (this.configService.get<string>('FLITT_PAYMENT_KEY') || '').trim();
-    this.flittCreditPrivateKey = (this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '').trim();
-    // Signature: use FLITT_SECRET_KEY from Flitt Portal; fallback to FLITT_CREDIT_PRIVATE_KEY only if unset
-    const secretKey = this.configService.get<string>('FLITT_SECRET_KEY') || this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '';
-    this.flittSecretKey = secretKey.trim();
+    this.flittMerchantId = stripEnvQuotes(this.configService.get<string>('FLITT_MERCHANT_ID') || '');
+    this.flittPaymentKey = stripEnvQuotes(this.configService.get<string>('FLITT_PAYMENT_KEY') || '');
+    this.flittCreditPrivateKey = stripEnvQuotes(this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '');
+    // Checkout/token signature: use Secret key if set; else Payment key (portal "Payment key"); else Credit private key
+    const rawSecret =
+      this.configService.get<string>('FLITT_SECRET_KEY') ||
+      this.configService.get<string>('FLITT_PAYMENT_KEY') ||
+      this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') ||
+      '';
+    this.flittSecretKey = stripEnvQuotes(rawSecret);
     this.flittBaseUrl = (this.configService.get<string>('FLITT_BASE_URL') || 'https://pay.flitt.com').replace(/\/$/, '');
 
     if (!this.flittMerchantId || !this.flittSecretKey) {
-      console.warn('⚠️ Flitt: FLITT_MERCHANT_ID and FLITT_SECRET_KEY (or FLITT_CREDIT_PRIVATE_KEY) are required for payments.');
+      console.warn(
+        '⚠️ Flitt: FLITT_MERCHANT_ID and one of FLITT_SECRET_KEY, FLITT_PAYMENT_KEY, FLITT_CREDIT_PRIVATE_KEY are required for payments.'
+      );
     } else {
+      if (this.flittMerchantId !== '1549901' && this.flittSecretKey === 'test') {
+        console.warn(
+          '⚠️ Flitt: Merchant is not 1549901 but FLITT_SECRET_KEY is "test". ' +
+            'For your merchant you must set FLITT_SECRET_KEY from Flitt Portal → Technical Settings → Secret key. ' +
+            'Otherwise you will get "Invalid signature" (1014).'
+        );
+      }
       console.log('✅ Flitt Payment Service initialized:', {
         merchantId: this.flittMerchantId,
         baseUrl: this.flittBaseUrl,
+        secretKeyLength: this.flittSecretKey.length,
       });
     }
   }
@@ -388,9 +413,9 @@ export class PaymentsService {
   }
 
   /**
-   * Generate signature for Flitt API request (matches official SDK util.js genSignature)
+   * Generate signature for Flitt API request (matches official SDK util.js genSignature exactly)
    * https://github.com/flittpayments/node-js-sdk/blob/main/lib/util.js
-   * Sign string: secret + '|' + Object.values(ordered).join('|') with keys sorted, empty string and signature key excluded.
+   * Sign string: secret + '|' + Object.values(ordered).join('|'), keys sorted, exclude '' and signature keys.
    */
   private generateFlittSignature(params: Record<string, string | number>): string {
     const crypto = require('crypto');
@@ -398,12 +423,20 @@ export class PaymentsService {
     Object.keys(params)
       .sort()
       .forEach((key) => {
-        if (key !== 'signature' && key !== 'response_signature_string' && params[key] !== '') {
+        if (params[key] !== '' && key !== 'signature' && key !== 'response_signature_string') {
           ordered[key] = params[key];
         }
       });
     const signString = this.flittSecretKey + '|' + Object.values(ordered).join('|');
-    return crypto.createHash('sha1').update(signString, 'utf8').digest('hex');
+    const hash = crypto.createHash('sha1').update(signString, 'utf8').digest('hex');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Flitt signature debug:', {
+        paramKeys: Object.keys(ordered).sort(),
+        signStringLength: signString.length,
+        secretLength: this.flittSecretKey.length,
+      });
+    }
+    return hash;
   }
 
   /**
