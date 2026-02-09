@@ -30,6 +30,8 @@ export class PaymentsService {
   private readonly flittMerchantId: string;
   private readonly flittPaymentKey: string;
   private readonly flittCreditPrivateKey: string;
+  /** Secret key for request signature (Flitt "payment secret key" from Technical Settings). Use FLITT_SECRET_KEY or FLITT_CREDIT_PRIVATE_KEY. */
+  private readonly flittSignatureSecret: string;
   private readonly flittBaseUrl: string;
   private readonly flittTestMode: boolean;
   private flittSDKInstance: any = null;
@@ -38,10 +40,12 @@ export class PaymentsService {
     this.flittMerchantId = this.configService.get<string>('FLITT_MERCHANT_ID') || '';
     this.flittPaymentKey = this.configService.get<string>('FLITT_PAYMENT_KEY') || '';
     this.flittCreditPrivateKey = this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '';
+    // Signature: use FLITT_SECRET_KEY (Flitt portal "Secret key" / "test secret key for purchases") if set, else FLITT_CREDIT_PRIVATE_KEY
+    const secretKey = this.configService.get<string>('FLITT_SECRET_KEY') || this.flittCreditPrivateKey;
+    this.flittSignatureSecret = (secretKey || '').trim();
     this.flittBaseUrl = this.configService.get<string>('FLITT_BASE_URL') || 'https://pay.flitt.com';
     this.flittTestMode = this.configService.get<string>('FLITT_TEST_MODE') === 'true';
-    
-    // Log configuration (without sensitive data)
+
     if (!this.flittMerchantId || !this.flittPaymentKey || !this.flittCreditPrivateKey) {
       console.warn('⚠️ Flitt credentials not fully configured. Please check environment variables.');
     } else {
@@ -49,6 +53,7 @@ export class PaymentsService {
         merchantId: this.flittMerchantId.substring(0, 4) + '...',
         baseUrl: this.flittBaseUrl,
         testMode: this.flittTestMode,
+        signatureKeySource: this.configService.get<string>('FLITT_SECRET_KEY') ? 'FLITT_SECRET_KEY' : 'FLITT_CREDIT_PRIVATE_KEY',
       });
     }
   }
@@ -419,22 +424,26 @@ export class PaymentsService {
 
   /**
    * Generate signature for Flitt API request
-   * Flitt uses SHA1(secret_key | param1 | param2 | ...) with params in alphabetic order, empty excluded.
-   * Docs: https://docs.flitt.com/api/building-signature
+   * Flitt uses SHA1(secret_key|param1|param2|...) with params in alphabetic order, empty excluded.
+   * Secret = "payment secret key" from Flitt Technical Settings (test: "test"). Docs: https://docs.flitt.com/api/building-signature
    */
   private generateFlittSignature(params: Record<string, string | number>): string {
     const crypto = require('crypto');
-    const secretKey = this.flittCreditPrivateKey;
+    const secretKey = this.flittSignatureSecret;
 
     const sortedKeys = Object.keys(params).filter(k => k !== 'signature').sort();
     const parts: string[] = [secretKey];
     for (const key of sortedKeys) {
       const v = params[key];
+      // Include 0; exclude only empty string, null, undefined (per Flitt: "parameter with value 0 is not null")
       if (v !== '' && v !== undefined && v !== null) {
         parts.push(String(v));
       }
     }
     const signatureString = parts.join('|');
+    if (this.flittTestMode) {
+      console.log('Flitt signature params (keys):', sortedKeys.join(', '));
+    }
     const hash = crypto.createHash('sha1').update(signatureString, 'utf8').digest('hex');
     return hash.toLowerCase();
   }
