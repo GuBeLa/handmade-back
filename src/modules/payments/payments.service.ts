@@ -168,92 +168,58 @@ export class PaymentsService {
       }
 
       // Fallback to direct API call if SDK is not available or fails
-      // According to Flitt documentation: https://docs.flitt.com/api/mobile/apple-webview/
-      // Backend should POST to: https://pay.flitt.com/api/checkout/token
-      const orderData = {
-        merchant_id: this.flittMerchantId,
-        order_id: dto.orderId,
-        order_desc: dto.description,
+      // Flitt API requires: 1) body wrapped in "request", 2) signature = SHA1(secret|param1|param2|...) with params in alphabetic order
+      // Docs: https://docs.flitt.com/api/request and https://docs.flitt.com/api/building-signature
+      const merchantIdNum = parseInt(this.flittMerchantId, 10);
+      if (isNaN(merchantIdNum)) {
+        throw new BadRequestException('Invalid FLITT_MERCHANT_ID: must be a number');
+      }
+
+      const requestParams: Record<string, string | number> = {
         amount: amountInTetri,
         currency: dto.currency.toUpperCase(),
+        merchant_id: merchantIdNum,
+        order_desc: dto.description,
+        order_id: dto.orderId,
         server_callback_url: `${apiBaseUrl}/payments/flitt/callback`,
-        ...(dto.customerPhone && { customer_phone: dto.customerPhone }),
-        ...(dto.customerEmail && { customer_email: dto.customerEmail }),
       };
-
-      // Generate signature for Flitt API
-      const signature = this.generateFlittSignature(orderData);
-
-      // Make API call to Flitt
-      // According to Flitt documentation: https://docs.flitt.com/api/mobile/apple-webview/
-      // The correct endpoint is: POST https://pay.flitt.com/api/checkout/token
-      const endpoints = [
-        { url: `${this.flittBaseUrl}/api/checkout/token`, auth: 'signature' },
-        { url: `${this.flittBaseUrl}/api/checkout/token`, auth: 'bearer' },
-      ];
-      
-      let lastError: any = null;
-      let response: any = null;
-      
-      for (const endpointConfig of endpoints) {
-        try {
-          console.log(`Trying Flitt endpoint: ${endpointConfig.url} (auth: ${endpointConfig.auth})`);
-          
-          // Prepare headers based on authentication method
-          const headers: any = {
-            'Content-Type': 'application/json',
-          };
-          
-          if (endpointConfig.auth === 'bearer') {
-            headers['Authorization'] = `Bearer ${this.flittPaymentKey}`;
-          } else {
-            // Signature-based auth - signature is in the request body
-            headers['X-Merchant-Id'] = this.flittMerchantId;
-          }
-          
-          // Prepare request body
-          const requestBody: any = {
-            ...orderData,
-          };
-          
-          // Add signature to body for signature-based auth
-          if (endpointConfig.auth === 'signature') {
-            requestBody.signature = signature;
-          }
-          
-          response = await axios.post(
-            endpointConfig.url,
-            requestBody,
-            {
-              headers,
-              timeout: 10000,
-            }
-          );
-          
-          // If successful, break out of loop
-          if (response && response.data) {
-            console.log(`✅ Successfully connected to Flitt API at: ${endpointConfig.url} (${endpointConfig.auth})`);
-            break;
-          }
-        } catch (error: any) {
-          lastError = error;
-          const status = error.response?.status;
-          const statusText = error.response?.statusText;
-          const errorData = error.response?.data;
-          console.warn(`❌ Failed to connect to ${endpointConfig.url} (${endpointConfig.auth}):`, {
-            status,
-            statusText,
-            error: errorData || error.message,
-          });
-          // Continue to next endpoint
-          continue;
-        }
+      if (dto.customerPhone) {
+        requestParams.customer_phone = dto.customerPhone;
       }
-      
-      // If all endpoints failed, throw error with detailed information
+      if (dto.customerEmail) {
+        requestParams.customer_email = dto.customerEmail;
+      }
+
+      const signature = this.generateFlittSignature(requestParams);
+      requestParams.signature = signature;
+
+      // Flitt expects root element "request" (docs: https://docs.flitt.com/api/request)
+      const requestBody = { request: requestParams };
+
+      let response: any = null;
+      try {
+        console.log(`Calling Flitt API: ${this.flittBaseUrl}/api/checkout/token (body wrapped in "request")`);
+        response = await axios.post(
+          `${this.flittBaseUrl}/api/checkout/token`,
+          requestBody,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000,
+          }
+        );
+        if (response && response.data) {
+          console.log(`✅ Flitt API responded successfully`);
+        }
+      } catch (error: any) {
+        const status = error.response?.status;
+        const errorData = error.response?.data;
+        console.warn(`❌ Flitt API request failed:`, { status, error: errorData || error.message });
+        throw error;
+      }
+
       if (!response || !response.data) {
-        console.error('❌ All Flitt API endpoints failed. Last error:', lastError?.response?.data || lastError?.message);
-        throw lastError || new Error('All Flitt API endpoints failed. Please check Flitt API documentation for correct endpoints.');
+        console.error('❌ Flitt API did not return data');
+        throw new InternalServerErrorException('Flitt API did not return data');
       }
 
       // Flitt API wraps success/error in a "response" object: { response: { token?, response_status, error_message? } }
@@ -453,25 +419,24 @@ export class PaymentsService {
 
   /**
    * Generate signature for Flitt API request
-   * Flitt uses HMAC-SHA256 signature for request verification
-   * According to Flitt documentation
+   * Flitt uses SHA1(secret_key | param1 | param2 | ...) with params in alphabetic order, empty excluded.
+   * Docs: https://docs.flitt.com/api/building-signature
    */
-  private generateFlittSignature(data: any): string {
+  private generateFlittSignature(params: Record<string, string | number>): string {
     const crypto = require('crypto');
-    
-    // Sort keys and create signature string
-    const sortedKeys = Object.keys(data).sort();
-    const signatureString = sortedKeys
-      .map(key => `${key}=${data[key]}`)
-      .join('&');
-    
-    // Generate HMAC-SHA256 signature using credit private key
-    const signature = crypto
-      .createHmac('sha256', this.flittCreditPrivateKey)
-      .update(signatureString)
-      .digest('hex');
-    
-    return signature;
+    const secretKey = this.flittCreditPrivateKey;
+
+    const sortedKeys = Object.keys(params).filter(k => k !== 'signature').sort();
+    const parts: string[] = [secretKey];
+    for (const key of sortedKeys) {
+      const v = params[key];
+      if (v !== '' && v !== undefined && v !== null) {
+        parts.push(String(v));
+      }
+    }
+    const signatureString = parts.join('|');
+    const hash = crypto.createHash('sha1').update(signatureString, 'utf8').digest('hex');
+    return hash.toLowerCase();
   }
 
   /**
