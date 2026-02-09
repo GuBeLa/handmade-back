@@ -7,10 +7,10 @@ import { getAuth, Auth } from 'firebase-admin/auth';
 
 @Injectable()
 export class FirebaseConfig implements OnModuleInit {
-  private app: App | null = null;
-  public firestore: Firestore | null = null;
-  public storage: Storage | null = null;
-  public auth: Auth | null = null;
+  private app: App;
+  public firestore: Firestore;
+  public storage: Storage;
+  public auth: Auth;
 
   constructor(private configService: ConfigService) {}
 
@@ -20,10 +20,8 @@ export class FirebaseConfig implements OnModuleInit {
       this.initializeFirebase();
       console.log('✅ Firebase initialization completed');
     } catch (error) {
-      console.warn('Firebase not configured or failed to initialize. Firestore/Storage features will be disabled.', (error as Error)?.message ?? error);
-      this.firestore = null;
-      this.storage = null;
-      this.auth = null;
+      console.error('❌ Firebase initialization failed:', error);
+      throw error;
     }
   }
 
@@ -222,16 +220,22 @@ export class FirebaseConfig implements OnModuleInit {
     }
   }
 
-  getFirestore(): Firestore | null {
-    return this.firestore ?? null;
+  getFirestore(): Firestore {
+    if (!this.firestore) {
+      throw new Error('Firestore is not initialized. Check Firebase configuration.');
+    }
+    return this.firestore;
   }
 
-  getStorage(): Storage | null {
-    return this.storage ?? null;
+  getStorage(): Storage {
+    if (!this.storage) {
+      throw new Error('Storage is not initialized. Check Firebase configuration.');
+    }
+    return this.storage;
   }
 
-  getAuth(): Auth | null {
-    return this.auth ?? null;
+  getAuth(): Auth {
+    return this.auth;
   }
 }
 
