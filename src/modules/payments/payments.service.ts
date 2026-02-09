@@ -430,7 +430,13 @@ export class PaymentsService {
       });
     const signString = this.flittSecretKey + '|' + Object.values(ordered).join('|');
     const hash = crypto.createHash('sha1').update(signString, 'utf8').digest('hex');
-    console.log('Flitt sign:', { paramKeys: Object.keys(ordered).sort(), secretLen: this.flittSecretKey.length });
+    const secretLen = this.flittSecretKey.length;
+    console.log('Flitt sign:', { paramKeys: Object.keys(ordered).sort(), secretLen });
+    if (secretLen === 4 && this.flittMerchantId !== '1549901') {
+      console.warn(
+        "⚠️ Flitt: secretLen=4 means secret is 'test'. For merchant 4055448 set FLITT_SECRET_KEY to Payment key or Credit key (32 chars)."
+      );
+    }
     return hash;
   }
 
