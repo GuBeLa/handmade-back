@@ -111,15 +111,23 @@ export class AuthService {
           identifier,
         );
       } catch (error) {
-        console.error('Error finding user:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Login: Firestore error finding user:', (error as Error)?.message);
+        }
         throw new UnauthorizedException('Invalid credentials');
       }
 
       if (!user) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Login: no user found for', searchField, identifier);
+        }
         throw new UnauthorizedException('Invalid credentials');
       }
 
       if (!user.password) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Login: user has no password (e.g. OAuth-only account)');
+        }
         throw new UnauthorizedException('Invalid credentials');
       }
 
@@ -133,11 +141,16 @@ export class AuthService {
       try {
         isPasswordValid = await bcrypt.compare(password, user.password);
       } catch (error) {
-        console.error('Error comparing password:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Login: bcrypt.compare error:', (error as Error)?.message);
+        }
         throw new UnauthorizedException('Invalid credentials');
       }
 
       if (!isPasswordValid) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Login: password mismatch for', searchField, identifier);
+        }
         throw new UnauthorizedException('Invalid credentials');
       }
 
