@@ -9,20 +9,30 @@ export class FirestoreService {
 
   constructor(private firebaseConfig: FirebaseConfig) {}
 
-  private getDb(): Firestore {
-    // Lazy initialization - get Firestore when first needed
-    if (!this.db) {
-      try {
-        this.db = this.firebaseConfig.getFirestore();
-        if (!this.db) {
-          throw new Error('Firestore is not initialized. Check Firebase configuration.');
-        }
-      } catch (error) {
-        console.error('❌ Failed to get Firestore instance:', error);
-        throw new Error(`Firestore service initialization failed: ${error.message}`);
-      }
+  /** Returns Firestore instance or null if Firebase is not configured. Does not throw. */
+  getDbOrNull(): Firestore | null {
+    if (this.db !== null) {
+      return this.db;
     }
-    return this.db;
+    try {
+      this.db = this.firebaseConfig.getFirestore() ?? null;
+      return this.db;
+    } catch {
+      return null;
+    }
+  }
+
+  /** True when Firestore is available (Firebase configured and initialized). */
+  isAvailable(): boolean {
+    return this.getDbOrNull() !== null;
+  }
+
+  private getDb(): Firestore {
+    const db = this.getDbOrNull();
+    if (!db) {
+      throw new Error('Firestore is not initialized. Check Firebase configuration.');
+    }
+    return db;
   }
 
   collection(collectionName: string): CollectionReference {
