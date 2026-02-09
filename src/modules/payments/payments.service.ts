@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
@@ -256,14 +256,30 @@ export class PaymentsService {
         throw lastError || new Error('All Flitt API endpoints failed. Please check Flitt API documentation for correct endpoints.');
       }
 
-      if (response.data && response.data.token) {
+      // Flitt API wraps success/error in a "response" object: { response: { token?, response_status, error_message? } }
+      const flittResponse = response.data.response ?? response.data;
+      const responseStatus = flittResponse?.response_status ?? flittResponse?.status;
+
+      if (responseStatus === 'failure') {
+        const errorMessage = flittResponse?.error_message ?? flittResponse?.error ?? 'Flitt API returned failure';
+        const errorCode = flittResponse?.error_code;
+        console.warn('Flitt API failure:', { errorMessage, errorCode, flittResponse });
+        throw new BadRequestException(errorMessage);
+      }
+
+      // Token can be at response.response.token (official format) or response.token
+      const token = flittResponse?.token ?? response.data.token;
+      const paymentUrl = flittResponse?.payment_url ?? response.data.payment_url;
+
+      if (token) {
         return {
-          token: response.data.token,
+          token,
           orderId: dto.orderId,
-          paymentUrl: response.data.payment_url,
+          ...(paymentUrl && { paymentUrl }),
         };
       }
 
+      console.error('Flitt API response missing token. Full response:', JSON.stringify(response.data));
       throw new InternalServerErrorException('Failed to create payment token');
     } catch (error: any) {
       console.error('Failed to create Flitt payment token:', error);
@@ -277,14 +293,28 @@ export class PaymentsService {
         hasPaymentKey: !!this.flittPaymentKey,
         hasCreditKey: !!this.flittCreditPrivateKey,
       });
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                            error.response.data?.error || 
-                            `Flitt API error: ${error.response.status}`;
-        throw new BadRequestException(errorMessage);
+
+      // Re-throw our own HTTP exceptions (e.g. BadRequest, InternalServer) as-is
+      if (error instanceof HttpException) {
+        throw error;
       }
-      
+
+      // Axios error with Flitt response body
+      if (error.response?.data) {
+        const data = error.response.data;
+        const flittResp = data?.response ?? data;
+        const errorMessage =
+          data?.message ??
+          flittResp?.error_message ??
+          (typeof data?.error === 'string' ? data.error : null) ??
+          (typeof flittResp?.error === 'string' ? flittResp.error : null) ??
+          (error.response?.status != null ? `Flitt API error: ${error.response.status}` : null) ??
+          error.message;
+        if (errorMessage) {
+          throw new BadRequestException(errorMessage);
+        }
+      }
+
       if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
         throw new InternalServerErrorException(
           `Cannot connect to Flitt API at ${this.flittBaseUrl}. Please check FLITT_BASE_URL configuration.`
