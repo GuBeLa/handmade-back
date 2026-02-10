@@ -170,22 +170,17 @@ export class PaymentsService {
         );
       }
 
-      // Use string values for all params so signature matches what Flitt server sees from JSON body
+      // Build params exactly as Flitt docs for checkout/token:
+      // amount, currency, merchant_id, order_desc, order_id, server_callback_url (+ signature)
       const serverCallbackUrl = `${apiBaseUrl}/payments/flitt/callback`;
-      const requestParams: Record<string, string> = {
-        amount: String(amountInTetri),
+      const requestParams: Record<string, string | number | undefined> = {
+        amount: amountInTetri, // minor units (e.g. tetri)
         currency: dto.currency.toUpperCase(),
-        merchant_id: String(merchantIdNum),
+        merchant_id: merchantIdNum,
         order_desc: dto.description,
         order_id: dto.orderId,
         server_callback_url: serverCallbackUrl,
       };
-      if (dto.customerPhone) {
-        requestParams.customer_phone = String(dto.customerPhone).trim();
-      }
-      if (dto.customerEmail) {
-        requestParams.sender_email = String(dto.customerEmail).trim();
-      }
 
       const signature = this.generateFlittSignature(requestParams);
       requestParams.signature = signature;
@@ -414,24 +409,38 @@ export class PaymentsService {
   }
 
   /**
-   * Generate signature for Flitt API request (matches official SDK util.js genSignature exactly)
-   * https://github.com/flittpayments/node-js-sdk/blob/main/lib/util.js
-   * Sign string: secret + '|' + Object.values(ordered).join('|'), keys sorted, exclude '' and signature keys.
+   * Generate signature for Flitt API request.
+   * Per Flitt docs/support for checkout/token:
+   *   secretKey|amount|currency|merchant_id|order_desc|order_id|server_callback_url
    */
   private generateFlittSignature(params: Record<string, string | number | undefined>): string {
     const crypto = require('crypto');
-    const ordered: Record<string, string> = {};
-    Object.keys(params)
-      .sort()
-      .forEach((key) => {
-        if (key !== 'signature' && key !== 'response_signature_string' && params[key] !== '' && params[key] != null) {
-          ordered[key] = String(params[key]);
-        }
-      });
-    const signString = this.flittSecretKey + '|' + Object.values(ordered).join('|');
+    const keysInOrder = [
+      'amount',
+      'currency',
+      'merchant_id',
+      'order_desc',
+      'order_id',
+      'server_callback_url',
+    ] as const;
+
+    const values: string[] = [];
+    for (const k of keysInOrder) {
+      const v = params[k];
+      if (v === undefined || v === null || v === '') continue;
+      values.push(String(v));
+    }
+
+    const tail = values.join('|');
+    const signString = this.flittSecretKey + '|' + tail;
     const hash = crypto.createHash('sha1').update(signString, 'utf8').digest('hex');
+
     const secretLen = this.flittSecretKey.length;
-    console.log('Flitt sign:', { paramKeys: Object.keys(ordered).sort(), secretLen });
+    console.log('Flitt sign:', {
+      paramKeys: keysInOrder.filter((k) => params[k] !== undefined && params[k] !== null && params[k] !== ''),
+      secretLen,
+      signTail: tail,
+    });
     if (secretLen === 4 && this.flittMerchantId !== '1549901') {
       console.warn(
         "⚠️ Flitt: secretLen=4 means secret is 'test'. For merchant 4055448 set FLITT_SECRET_KEY to Payment key or Credit key (32 chars)."
