@@ -180,6 +180,11 @@ export class PaymentsService {
         order_desc: dto.description,
         order_id: dto.orderId,
         server_callback_url: serverCallbackUrl,
+        // Enable Open Banking (OPB) per Flitt docs when creating token
+        // This lets checkout/token create an open banking payment
+        payment_systems: 'opb',
+        // For testing you can force demo bank: 'x'. For real banks: 'tbc', 'bog', 'liberty', 'credo'
+        // payment_method: 'x',
       };
 
       const signature = this.generateFlittSignature(requestParams);
