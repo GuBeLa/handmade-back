@@ -50,9 +50,8 @@ export class PaymentsService {
     this.flittMerchantId = stripEnvQuotes(this.configService.get<string>('FLITT_MERCHANT_ID') || '');
     this.flittPaymentKey = stripEnvQuotes(this.configService.get<string>('FLITT_PAYMENT_KEY') || '');
     this.flittCreditPrivateKey = stripEnvQuotes(this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '');
-    // Checkout/token signature: use Secret key if set; else Credit private key (portal "Credit private key"); else Payment key
+    // Checkout/token signature: Credit private key or Payment key (no FLITT_SECRET_KEY)
     const rawSecret =
-      this.configService.get<string>('FLITT_SECRET_KEY') ||
       this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') ||
       this.configService.get<string>('FLITT_PAYMENT_KEY') ||
       '';
@@ -61,14 +60,12 @@ export class PaymentsService {
 
     if (!this.flittMerchantId || !this.flittSecretKey) {
       console.warn(
-        '⚠️ Flitt: FLITT_MERCHANT_ID and one of FLITT_SECRET_KEY, FLITT_PAYMENT_KEY, FLITT_CREDIT_PRIVATE_KEY are required for payments.'
+        '⚠️ Flitt: FLITT_MERCHANT_ID and one of FLITT_PAYMENT_KEY, FLITT_CREDIT_PRIVATE_KEY are required for payments.'
       );
     } else {
       if (this.flittMerchantId !== '1549901' && this.flittSecretKey === 'test') {
         console.warn(
-          '⚠️ Flitt: Merchant is not 1549901 but FLITT_SECRET_KEY is "test". ' +
-            'For your merchant you must set FLITT_SECRET_KEY from Flitt Portal → Technical Settings → Secret key. ' +
-            'Otherwise you will get "Invalid signature" (1014).'
+          '⚠️ Flitt: Merchant is not 1549901 but secret is "test". Use FLITT_PAYMENT_KEY or FLITT_CREDIT_PRIVATE_KEY from portal.'
         );
       }
       console.log('✅ Flitt Payment Service initialized:', {
@@ -81,7 +78,7 @@ export class PaymentsService {
 
   /**
    * Get Flitt SDK instance (FlittPay from @flittpayments/flitt-node-js-sdk)
-   * Uses FLITT_MERCHANT_ID and FLITT_SECRET_KEY from env (same as official SDK).
+   * Uses FLITT_MERCHANT_ID and signature key (FLITT_PAYMENT_KEY or FLITT_CREDIT_PRIVATE_KEY).
    */
   private getFlittSDK(): any {
     if (!this.flittSDKInstance) {
@@ -166,7 +163,7 @@ export class PaymentsService {
       const merchantIdNum = parseInt(this.flittMerchantId, 10);
       if (!this.flittMerchantId || isNaN(merchantIdNum) || !this.flittSecretKey) {
         throw new BadRequestException(
-          'Flitt credentials not configured. Set FLITT_MERCHANT_ID and FLITT_SECRET_KEY (from Flitt Portal → Technical Settings).'
+          'Flitt credentials not configured. Set FLITT_MERCHANT_ID and FLITT_PAYMENT_KEY or FLITT_CREDIT_PRIVATE_KEY.'
         );
       }
 
@@ -448,7 +445,7 @@ export class PaymentsService {
     });
     if (secretLen === 4 && this.flittMerchantId !== '1549901') {
       console.warn(
-        "⚠️ Flitt: secretLen=4 means secret is 'test'. For merchant 4055448 set FLITT_SECRET_KEY to Payment key or Credit key (32 chars)."
+        "⚠️ Flitt: secretLen=4 means secret is 'test'. Set FLITT_PAYMENT_KEY or FLITT_CREDIT_PRIVATE_KEY (32 chars)."
       );
     }
     return hash;
