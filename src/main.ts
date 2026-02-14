@@ -10,6 +10,7 @@ async function bootstrap() {
   
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    rawBody: true, // Required for webhook signature verification (HMAC of raw body)
   });
 
   // Global exception filter for better error handling

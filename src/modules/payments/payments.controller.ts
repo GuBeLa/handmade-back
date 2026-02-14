@@ -4,8 +4,13 @@ import {
   Body,
   UseGuards,
   Request,
+  Req,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
+import { RawBodyRequest } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
@@ -46,9 +51,21 @@ export class PaymentsController {
   }
 
   @Post('webhook')
-  @ApiOperation({ summary: 'Flitt payment webhook (Hosted Checkout callback)' })
-  async webhook(@Body() body: any) {
-    return this.paymentsService.handleFlittCallback(body);
+  @ApiOperation({ summary: 'Flitt payment webhook (HMAC x-signature required)' })
+  async webhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-signature') signature: string,
+  ) {
+    const rawBody = req.rawBody;
+    if (!rawBody || !signature) {
+      throw new UnauthorizedException('Missing raw body or x-signature');
+    }
+    const isValid = this.paymentsService.verifyWebhookSignature(rawBody, signature);
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid signature');
+    }
+    await this.paymentsService.processWebhookBody(req.body);
+    return { received: true };
   }
 
   @Post('flitt/callback')

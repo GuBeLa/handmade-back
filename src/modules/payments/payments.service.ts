@@ -45,6 +45,8 @@ export class PaymentsService {
   /** Secret used for request signature — from Flitt Portal → Technical Settings → Secret key */
   private readonly flittSecretKey: string;
   private readonly flittBaseUrl: string;
+  /** Webhook HMAC secret (x-signature header). Never trust webhook without this. */
+  private readonly flittWebhookSecret: string;
   private flittSDKInstance: any = null;
 
   constructor(
@@ -53,6 +55,7 @@ export class PaymentsService {
     private readonly ordersService: OrdersService,
   ) {
     this.flittMerchantId = stripEnvQuotes(this.configService.get<string>('FLITT_MERCHANT_ID') || '');
+    this.flittWebhookSecret = stripEnvQuotes(this.configService.get<string>('FLITT_WEBHOOK_SECRET') || '');
     this.flittPaymentKey = stripEnvQuotes(this.configService.get<string>('FLITT_PAYMENT_KEY') || '');
     this.flittCreditPrivateKey = stripEnvQuotes(this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '');
     // Checkout/token signature: Credit private key or Payment key (no FLITT_SECRET_KEY)
@@ -67,7 +70,12 @@ export class PaymentsService {
       console.warn(
         '⚠️ Flitt: FLITT_MERCHANT_ID and one of FLITT_PAYMENT_KEY, FLITT_CREDIT_PRIVATE_KEY are required for payments.'
       );
-    } else {
+    } else if (!this.flittWebhookSecret) {
+      console.warn(
+        '⚠️ Flitt: FLITT_WEBHOOK_SECRET is not set. Webhook (POST /payments/webhook) will reject all requests. Set it in Flitt Portal for x-signature HMAC verification.'
+      );
+    }
+    if (this.flittMerchantId && this.flittSecretKey) {
       if (this.flittMerchantId !== '1549901' && this.flittSecretKey === 'test') {
         console.warn(
           '⚠️ Flitt: Merchant is not 1549901 but secret is "test". Use FLITT_PAYMENT_KEY or FLITT_CREDIT_PRIVATE_KEY from portal.'
@@ -409,11 +417,34 @@ export class PaymentsService {
   }
 
   /**
-   * Handle Flitt payment callback/webhook
+   * Verify webhook signature from x-signature header (HMAC-SHA256 of raw body).
+   * Use this when Flitt sends signature in header; never trust webhook without verification.
+   */
+  verifyWebhookSignature(rawBody: Buffer | string, signature: string): boolean {
+    if (!this.flittWebhookSecret || !signature) {
+      return false;
+    }
+    const crypto = require('crypto');
+    const payload = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody, 'utf8');
+    const expected = crypto
+      .createHmac('sha256', this.flittWebhookSecret)
+      .update(payload)
+      .digest('hex');
+    const expectedBuf = Buffer.from(expected, 'hex');
+    const sigBuf = Buffer.from(signature, 'hex');
+    if (expectedBuf.length !== sigBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(expectedBuf, sigBuf);
+  }
+
+  /**
+   * Handle Flitt payment callback/webhook (body already parsed).
+   * For HMAC verification use handleFlittWebhookWithSignature(rawBody, signature) instead.
    */
   async handleFlittCallback(callbackData: any) {
     try {
-      // Verify signature
+      // Legacy: verify signature from body (when Flitt sends signature in payload)
       const isValid = this.verifyFlittSignature(callbackData);
       
       if (!isValid) {
@@ -442,6 +473,21 @@ export class PaymentsService {
       console.error('Failed to handle Flitt callback:', error);
       throw error;
     }
+  }
+
+  /**
+   * Process webhook payload after HMAC verification (x-signature).
+   * Updates order to paid when status indicates success.
+   */
+  async processWebhookBody(body: any): Promise<{ success: true; status?: string; orderId?: string }> {
+    const status = body.status || body.order_status;
+    const orderId = body.order_id;
+    const isSuccess =
+      status === 'approved' || status === 'success' || status === 'completed' || status === 'paid' || status === 'SUCCESS';
+    if (isSuccess && orderId) {
+      await this.ordersService.setOrderPaid(String(orderId));
+    }
+    return { success: true, status, orderId };
   }
 
   /**
