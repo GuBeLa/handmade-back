@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, InternalServerErrorException, HttpException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, HttpException, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
+import { OrdersService } from '../orders/orders.service';
 import axios from 'axios';
 
 // Lazy load Flitt Node.js SDK
@@ -46,7 +47,11 @@ export class PaymentsService {
   private readonly flittBaseUrl: string;
   private flittSDKInstance: any = null;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @Inject(forwardRef(() => OrdersService))
+    private readonly ordersService: OrdersService,
+  ) {
     this.flittMerchantId = stripEnvQuotes(this.configService.get<string>('FLITT_MERCHANT_ID') || '');
     this.flittPaymentKey = stripEnvQuotes(this.configService.get<string>('FLITT_PAYMENT_KEY') || '');
     this.flittCreditPrivateKey = stripEnvQuotes(this.configService.get<string>('FLITT_CREDIT_PRIVATE_KEY') || '');
@@ -106,6 +111,29 @@ export class PaymentsService {
       }
     }
     return this.flittSDKInstance;
+  }
+
+  /**
+   * Create Hosted Checkout session: returns checkoutUrl for WebView/redirect.
+   * Flow: Front opens checkoutUrl → Flitt Hosted Checkout (cards, Apple Pay, Google Pay) → Webhook updates order.
+   */
+  async createHostedCheckoutSession(amount: number, orderId: string): Promise<{ checkoutUrl: string; orderId: string }> {
+    const result = await this.createPaymentToken({
+      amount,
+      orderId,
+      description: `Order ${orderId}`,
+      currency: 'GEL',
+      paymentMethod: PaymentMethod.FLITT,
+    });
+    const paymentUrl = (result as any).paymentUrl;
+    const token = (result as any).token;
+    const checkoutUrl =
+      paymentUrl ||
+      (token ? `${this.flittBaseUrl}/checkout?token=${encodeURIComponent(token)}` : '');
+    if (!checkoutUrl) {
+      throw new InternalServerErrorException('Flitt did not return checkout URL');
+    }
+    return { checkoutUrl, orderId };
   }
 
   /**
@@ -396,6 +424,12 @@ export class PaymentsService {
       const status = callbackData.status || callbackData.order_status;
       const orderId = callbackData.order_id;
       const transactionId = callbackData.transaction_id || callbackData.order_id;
+
+      const isSuccess =
+        status === 'approved' || status === 'success' || status === 'completed' || status === 'paid';
+      if (isSuccess && orderId) {
+        await this.ordersService.setOrderPaid(String(orderId));
+      }
 
       return {
         success: true,

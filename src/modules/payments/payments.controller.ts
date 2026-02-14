@@ -9,12 +9,25 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
+import { CreateHostedCheckoutDto } from './dto/create-hosted-checkout.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  /**
+   * Create Hosted Checkout session – returns checkoutUrl for WebView/redirect.
+   * Flow: Backend creates session → Front opens checkoutUrl → Flitt Hosted Checkout (cards, Apple Pay, Google Pay) → Webhook updates order.
+   */
+  @Post('create')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Hosted Checkout session (returns checkoutUrl)' })
+  async createHostedCheckout(@Request() req, @Body() dto: CreateHostedCheckoutDto) {
+    return this.paymentsService.createHostedCheckoutSession(dto.amount, dto.orderId);
+  }
 
   @Post('create-token')
   @UseGuards(JwtAuthGuard)
@@ -32,8 +45,14 @@ export class PaymentsController {
     return this.paymentsService.verifyPayment(verifyDto);
   }
 
+  @Post('webhook')
+  @ApiOperation({ summary: 'Flitt payment webhook (Hosted Checkout callback)' })
+  async webhook(@Body() body: any) {
+    return this.paymentsService.handleFlittCallback(body);
+  }
+
   @Post('flitt/callback')
-  @ApiOperation({ summary: 'Flitt payment callback/webhook' })
+  @ApiOperation({ summary: 'Flitt payment callback (legacy)' })
   async handleFlittCallback(@Body() callbackData: any) {
     return this.paymentsService.handleFlittCallback(callbackData);
   }

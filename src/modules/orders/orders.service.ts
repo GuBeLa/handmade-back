@@ -171,7 +171,7 @@ export class OrdersService {
       deliveryMethod,
       deliveryAddress,
       status: OrderStatus.PENDING,
-      isPaid: paymentMethod.includes('cod') ? false : true,
+      isPaid: false, // Set true by payment webhook (Flitt) or when COD delivered
     };
 
     // Only include couponCode if it exists and is not undefined
@@ -407,6 +407,26 @@ export class OrdersService {
     }
 
     return this.findOne(id);
+  }
+
+  /**
+   * Mark order as paid (called from Flitt webhook).
+   */
+  async setOrderPaid(orderId: string): Promise<void> {
+    try {
+      const order: any = await this.firestoreService.findById('orders', orderId);
+      if (!order) {
+        console.warn(`Flitt webhook: order not found: ${orderId}`);
+        return;
+      }
+      await this.firestoreService.update('orders', orderId, {
+        isPaid: true,
+        status: OrderStatus.CONFIRMED,
+      });
+      console.log(`Order ${orderId} marked as paid (Flitt webhook).`);
+    } catch (e) {
+      console.error('setOrderPaid failed:', e);
+    }
   }
 
   private calculateDeliveryFee(method: DeliveryMethod, region?: string, city?: string, isRural?: boolean): number {
