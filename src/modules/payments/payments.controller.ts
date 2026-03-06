@@ -9,7 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
 import { RawBodyRequest } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -53,7 +53,7 @@ export class PaymentsController {
   @Post('webhook')
   @ApiOperation({ summary: 'Flitt payment webhook (HMAC x-signature required)' })
   async webhook(
-    @Req() req: RawBodyRequest<Request>,
+    @Req() req: RawBodyRequest<ExpressRequest>,
     @Headers('x-signature') signature: string,
   ) {
     const rawBody = req.rawBody;

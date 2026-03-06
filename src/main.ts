@@ -76,6 +76,26 @@ async function bootstrap() {
         return callback(null, true);
       }
 
+      // Allow Vercel deployments (*.vercel.app) and production frontend (arteli.store)
+      try {
+        const url = new URL(origin);
+        const host = url.hostname.toLowerCase();
+        if (host.endsWith('.vercel.app')) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`✅ CORS: Allowing Vercel origin: ${origin}`);
+          }
+          return callback(null, true);
+        }
+        if (host === 'arteli.store' || host === 'www.arteli.store') {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`✅ CORS: Allowing arteli.store origin: ${origin}`);
+          }
+          return callback(null, true);
+        }
+      } catch {
+        // invalid URL, fall through to reject
+      }
+
       // Reject other origins
       if (process.env.NODE_ENV !== 'production') {
         console.warn(`❌ CORS: Blocking origin: ${origin}`);

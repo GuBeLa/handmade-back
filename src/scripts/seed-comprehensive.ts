@@ -191,88 +191,25 @@ const testUsers = [
   },
 ];
 
-// Comprehensive categories with images
+// Product categories (EN + KA) — minimalist images, matches seed-categories.ts
 const categories = [
-  {
-    name: 'სამკაულები',
-    nameEn: 'Jewelry',
-    description: 'ხელნაკეთი სამკაულები',
-    descriptionEn: 'Handmade jewelry',
-    icon: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'სახლის დეკორი',
-    nameEn: 'Home Decor',
-    description: 'ხელნაკეთი სახლის დეკორაცია',
-    descriptionEn: 'Handmade home decoration',
-    icon: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'ტანსაცმელი',
-    nameEn: 'Clothing',
-    description: 'ხელნაკეთი ტანსაცმელი',
-    descriptionEn: 'Handmade clothing',
-    icon: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'აქსესუარები',
-    nameEn: 'Accessories',
-    description: 'ხელნაკეთი აქსესუარები',
-    descriptionEn: 'Handmade accessories',
-    icon: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'ხელოვნება და ხელნაკეთი',
-    nameEn: 'Art & Crafts',
-    description: 'ხელოვნების ნივთები და ხელნაკეთი',
-    descriptionEn: 'Art and crafts',
-    icon: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'ქსოვილი',
-    nameEn: 'Textiles',
-    description: 'ხელნაკეთი ქსოვილი',
-    descriptionEn: 'Handmade textiles',
-    icon: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'ხის ნაწარმი',
-    nameEn: 'Woodwork',
-    description: 'ხელნაკეთი ხის ნაწარმი',
-    descriptionEn: 'Handmade woodwork',
-    icon: 'https://images.unsplash.com/photo-1503602642458-232111445657?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1503602642458-232111445657?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'კერამიკა',
-    nameEn: 'Ceramics',
-    description: 'ხელნაკეთი კერამიკა',
-    descriptionEn: 'Handmade ceramics',
-    icon: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'წიგნები და ბარათები',
-    nameEn: 'Books & Cards',
-    description: 'ხელნაკეთი წიგნები და ბარათები',
-    descriptionEn: 'Handmade books and cards',
-    icon: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=800&h=600&fit=crop',
-  },
-  {
-    name: 'საბავშვო ნივთები',
-    nameEn: 'Kids Items',
-    description: 'ხელნაკეთი საბავშვო ნივთები',
-    descriptionEn: 'Handmade kids items',
-    icon: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400&h=400&fit=crop',
-    image: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&h=600&fit=crop',
-  },
+  { name: 'აქსესუარები', nameEn: 'Accessories', description: 'აქსესუარები', descriptionEn: 'Accessories', icon: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&h=600&fit=crop' },
+  { name: 'ხელოვნება და კოლექციური ნივთები', nameEn: 'Art & Collectibles', description: 'ხელოვნება და კოლექციური ნივთები', descriptionEn: 'Art & Collectibles', icon: 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=800&h=600&fit=crop' },
+  { name: 'ბავშვის პროდუქცია', nameEn: 'Baby', description: 'ბავშვის პროდუქცია', descriptionEn: 'Baby', icon: 'https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=800&h=600&fit=crop' },
+  { name: 'ჩანთები და საფულეები', nameEn: 'Bags & Purses', description: 'ჩანთები და საფულეები', descriptionEn: 'Bags & Purses', icon: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=800&h=600&fit=crop' },
+  { name: 'სილამაზე და მოვლა', nameEn: 'Bath & Beauty', description: 'სილამაზე და მოვლა', descriptionEn: 'Bath & Beauty', icon: 'https://images.unsplash.com/photo-1596462509314-39f2b6e7c1e0?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1596462509314-39f2b6e7c1e0?w=800&h=600&fit=crop' },
+  { name: 'წიგნები, ფილმები და მუსიკა', nameEn: 'Books, Movies & Music', description: 'წიგნები, ფილმები და მუსიკა', descriptionEn: 'Books, Movies & Music', icon: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=800&h=600&fit=crop' },
+  { name: 'ტანსაცმელი', nameEn: 'Clothing', description: 'ტანსაცმელი', descriptionEn: 'Clothing', icon: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=800&h=600&fit=crop' },
+  { name: 'ხელსაქმის მასალები', nameEn: 'Craft Supplies & Tools', description: 'ხელსაქმის მასალები', descriptionEn: 'Craft Supplies & Tools', icon: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=800&h=600&fit=crop' },
+  { name: 'ელექტრონიკა და აქსესუარები', nameEn: 'Electronics & Accessories', description: 'ელექტრონიკა და აქსესუარები', descriptionEn: 'Electronics & Accessories', icon: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=800&h=600&fit=crop' },
+  { name: 'საჩუქრები', nameEn: 'Gifts', description: 'საჩუქრები', descriptionEn: 'Gifts', icon: 'https://images.unsplash.com/photo-1513885535751-8b9238bd345a?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1513885535751-8b9238bd345a?w=800&h=600&fit=crop' },
+  { name: 'სახლი და ინტერიერი', nameEn: 'Home & Living', description: 'სახლი და ინტერიერი', descriptionEn: 'Home & Living', icon: 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?w=800&h=600&fit=crop' },
+  { name: 'სამკაულები', nameEn: 'Jewelry', description: 'სამკაულები', descriptionEn: 'Jewelry', icon: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&h=600&fit=crop' },
+  { name: 'საკანცელარიო და წვეულება', nameEn: 'Paper & Party Supplies', description: 'საკანცელარიო და წვეულება', descriptionEn: 'Paper & Party Supplies', icon: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&h=600&fit=crop' },
+  { name: 'ცხოველების აქსესუარები', nameEn: 'Pet Supplies', description: 'ცხოველების აქსესუარები', descriptionEn: 'Pet Supplies', icon: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=800&h=600&fit=crop' },
+  { name: 'ფეხსაცმელი', nameEn: 'Shoes', description: 'ფეხსაცმელი', descriptionEn: 'Shoes', icon: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&h=600&fit=crop' },
+  { name: 'სათამაშოები და თამაშები', nameEn: 'Toys & Games', description: 'სათამაშოები და თამაშები', descriptionEn: 'Toys & Games', icon: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop' },
+  { name: 'საქორწილო', nameEn: 'Weddings', description: 'საქორწილო', descriptionEn: 'Weddings', icon: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop' },
 ];
 
 // Comprehensive products with images
@@ -467,7 +404,7 @@ const products = [
     dimensions: '150cm x 200cm',
     careInstructions: 'მხოლოდ მშრალი გაწმენდა. არ გარეცხოთ მანქანაში.',
     careInstructionsEn: 'Dry clean only. Do not machine wash.',
-    categoryName: 'სახლის დეკორი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&h=800&fit=crop',
@@ -487,7 +424,7 @@ const products = [
     dimensionsEn: 'Small: 15cm, Medium: 25cm, Large: 35cm',
     careInstructions: 'გარეცხეთ მხოლოდ ხელით. მოპყრობა ფრთხილად.',
     careInstructionsEn: 'Hand wash only. Handle with care.',
-    categoryName: 'სახლის დეკორი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&h=800&fit=crop',
@@ -506,7 +443,7 @@ const products = [
     dimensions: '50cm x 70cm',
     careInstructions: 'თავიდან ავიდეთ პირდაპირ მზის სხივებს. გაასუფთავეთ რბილი ქსოვილით.',
     careInstructionsEn: 'Keep away from direct sunlight. Dust with soft cloth.',
-    categoryName: 'სახლის დეკორი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1499781350541-7783f6c6a0c8?w=800&h=800&fit=crop',
@@ -521,7 +458,7 @@ const products = [
     stock: 5,
     material: 'ხე',
     materialEn: 'Wood',
-    categoryName: 'სახლის დეკორი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1503602642458-232111445657?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&h=800&fit=crop',
@@ -537,7 +474,7 @@ const products = [
     stock: 15,
     material: 'ხე',
     materialEn: 'Wood',
-    categoryName: 'ხის ნაწარმი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1503602642458-232111445657?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&h=800&fit=crop',
@@ -552,7 +489,7 @@ const products = [
     stock: 20,
     material: 'ხე',
     materialEn: 'Wood',
-    categoryName: 'ხის ნაწარმი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&h=800&fit=crop',
@@ -567,7 +504,7 @@ const products = [
     stock: 6,
     material: 'ხე',
     materialEn: 'Wood',
-    categoryName: 'ხის ნაწარმი',
+    categoryName: 'სახლი და ინტერიერი',
     images: [
       'https://images.unsplash.com/photo-1503602642458-232111445657?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&h=800&fit=crop',
@@ -583,7 +520,7 @@ const products = [
     stock: 25,
     material: 'ბამბა',
     materialEn: 'Cotton',
-    categoryName: 'ქსოვილი',
+    categoryName: 'ტანსაცმელი',
     images: [
       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1544966503-7cc49a1c6d0e?w=800&h=800&fit=crop',
@@ -603,7 +540,7 @@ const products = [
     stock: 4,
     material: 'ბამბა',
     materialEn: 'Cotton',
-    categoryName: 'ქსოვილი',
+    categoryName: 'ტანსაცმელი',
     images: [
       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1544966503-7cc49a1c6d0e?w=800&h=800&fit=crop',
@@ -664,7 +601,7 @@ const products = [
     dimensionsEn: 'Bowl diameter: 15cm each',
     careInstructions: 'ჭურჭლის სარეცხი მანქანაში უსაფრთხო. მიკროტალღური ღუმელში უსაფრთხო.',
     careInstructionsEn: 'Dishwasher safe. Microwave safe.',
-    categoryName: 'კერამიკა',
+    categoryName: 'ხელოვნება და კოლექციური ნივთები',
     images: [
       'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&h=800&fit=crop',
@@ -680,7 +617,7 @@ const products = [
     stock: 30,
     material: 'ქაღალდი',
     materialEn: 'Paper',
-    categoryName: 'წიგნები და ბარათები',
+    categoryName: 'წიგნები, ფილმები და მუსიკა',
     images: [
       'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=800&h=800&fit=crop',
@@ -696,7 +633,7 @@ const products = [
     stock: 18,
     material: 'ხე, ბამბა',
     materialEn: 'Wood, Cotton',
-    categoryName: 'საბავშვო ნივთები',
+    categoryName: 'ბავშვის პროდუქცია',
     images: [
       'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=800&fit=crop',

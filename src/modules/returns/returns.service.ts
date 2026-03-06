@@ -5,6 +5,7 @@ import { UpdateReturnStatusDto } from './dto/update-return-status.dto';
 import { Return, Order } from '../../common/types/firestore.types';
 import { Timestamp } from 'firebase-admin/firestore';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class ReturnsService {
@@ -14,6 +15,7 @@ export class ReturnsService {
   constructor(
     private firestoreService: FirestoreService,
     private notificationsService: NotificationsService,
+    private loyaltyService: LoyaltyService,
   ) {}
 
   /**
@@ -295,12 +297,43 @@ export class ReturnsService {
       } else if (updateDto.status === 'refunded') {
         updateData.refundedAt = Timestamp.now();
         updateData.isRefunded = true;
+        const refundAmount =
+          updateDto.refundAmount ?? returnRequest.refundAmount ?? 0;
         if (updateDto.refundAmount !== undefined) {
           updateData.refundAmount = updateDto.refundAmount;
         } else if (returnRequest.refundAmount) {
           updateData.refundAmount = returnRequest.refundAmount;
         }
-        
+
+        // Deduct loyalty points (proportional to refund)
+        try {
+          const order = await this.firestoreService.findById<Order>(
+            'orders',
+            returnRequest.orderId,
+          );
+          if (
+            order &&
+            order.total > 0 &&
+            (order.loyaltyPointsEarned ?? 0) > 0 &&
+            refundAmount > 0
+          ) {
+            const pointsToRefund = Math.floor(
+              (order.loyaltyPointsEarned ?? 0) *
+                (refundAmount / order.total),
+            );
+            if (pointsToRefund > 0) {
+              await this.loyaltyService.refundForReturn(
+                returnRequest.userId,
+                returnRequest.orderId,
+                pointsToRefund,
+                `Return #${returnRequest.returnNumber}`,
+              );
+            }
+          }
+        } catch (e) {
+          this.logger.warn('Loyalty refund on return failed', e);
+        }
+
         // Send notification to buyer
         await this.notificationsService.create({
           userId: returnRequest.userId,

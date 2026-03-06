@@ -8,6 +8,7 @@ import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CouponsService } from '../promotions/coupons.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class OrdersService {
@@ -18,6 +19,7 @@ export class OrdersService {
     private readonly couponsService: CouponsService,
     @Inject(forwardRef(() => SubscriptionsService))
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly loyaltyService: LoyaltyService,
   ) {}
 
   async create(buyerId: string, createDto: CreateOrderDto): Promise<any> {
@@ -150,8 +152,27 @@ export class OrdersService {
     
     const commission = subtotal * commissionRate;
 
+    // Loyalty points redemption (validate and compute discount before creating order)
+    let loyaltyDiscount = 0;
+    let loyaltyPointsUsed = 0;
+    if (createDto.loyaltyPointsToRedeem && createDto.loyaltyPointsToRedeem > 0) {
+      try {
+        const validation = await this.loyaltyService.validateRedeem(
+          buyerId,
+          createDto.loyaltyPointsToRedeem,
+          subtotal,
+        );
+        if (validation.allowedPoints > 0) {
+          loyaltyDiscount = validation.discountAmount;
+          loyaltyPointsUsed = validation.allowedPoints;
+        }
+      } catch (e) {
+        // ignore invalid redeem
+      }
+    }
+
     // Calculate final total
-    const total = Math.max(0, subtotal - couponDiscount + deliveryFee);
+    const total = Math.max(0, subtotal - couponDiscount - loyaltyDiscount + deliveryFee);
 
     // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -163,6 +184,8 @@ export class OrdersService {
       items: orderItems,
       subtotal,
       discount: couponDiscount,
+      loyaltyPointsUsed: loyaltyPointsUsed || 0,
+      loyaltyPointsEarned: 0, // set when order is delivered
       freeShipping: orderFreeShipping,
       deliveryFee,
       commission,
@@ -194,6 +217,16 @@ export class OrdersService {
 
     // Create order
     const order = await this.firestoreService.create('orders', orderData);
+
+    // Deduct loyalty points and record history (after order is created so we have order.id)
+    if (loyaltyPointsUsed > 0) {
+      try {
+        await this.loyaltyService.redeem(buyerId, order.id, loyaltyPointsUsed, subtotal);
+      } catch (e) {
+        console.error('Loyalty redeem failed after order create:', e);
+        // Optionally revert order or leave as-is; for now we leave order with loyaltyPointsUsed
+      }
+    }
 
     // Increment coupon usage count if coupon was applied
     if (appliedCouponId) {
@@ -357,6 +390,23 @@ export class OrdersService {
       updateData.shippedAt = new Date();
     } else if (status === OrderStatus.DELIVERED) {
       updateData.deliveredAt = new Date();
+      // Award loyalty points (only once; order total already includes any loyalty discount)
+      const pointsUsed = order.loyaltyPointsUsed ?? 0;
+      if ((order.loyaltyPointsEarned ?? 0) === 0 && order.total != null) {
+        try {
+          const earned = await this.loyaltyService.earnForOrder(
+            order.buyerId,
+            id,
+            order.total,
+            pointsUsed,
+          );
+          if (earned > 0) {
+            updateData.loyaltyPointsEarned = earned;
+          }
+        } catch (e) {
+          console.error('Loyalty earnForOrder failed:', e);
+        }
+      }
     } else if (status === OrderStatus.CANCELLED) {
       updateData.cancelledAt = new Date();
       updateData.cancellationReason = updateDto.reason;

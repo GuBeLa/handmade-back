@@ -105,5 +105,11 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   pickupLocation?: string; // Pickup location if deliveryMethod is PICKUP
+
+  @ApiProperty({ required: false, description: 'Loyalty points to redeem for this order' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
 }
 

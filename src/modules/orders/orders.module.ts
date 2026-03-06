@@ -5,6 +5,7 @@ import { FirestoreModule } from '../../common/services/firestore.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     NotificationsModule,
     forwardRef(() => PromotionsModule),
     forwardRef(() => SubscriptionsModule),
+    LoyaltyModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],
