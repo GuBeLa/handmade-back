@@ -17,6 +17,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { NormalizeCreateOrderPipe } from './pipes/normalize-create-order.pipe';
 
 @ApiTags('Orders')
 @Controller('orders')
@@ -27,7 +28,10 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create order' })
-  async create(@Request() req, @Body() createDto: CreateOrderDto) {
+  async create(
+    @Request() req,
+    @Body(NormalizeCreateOrderPipe) createDto: CreateOrderDto,
+  ) {
     return this.ordersService.create(req.user.sub, createDto);
   }
 

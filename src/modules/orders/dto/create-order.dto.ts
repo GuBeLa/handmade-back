@@ -7,6 +7,7 @@ import {
   Min,
   ValidateNested,
   ArrayMinSize,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -34,6 +35,50 @@ export class OrderItemDto {
   variantColor?: string;
 }
 
+/** Nested delivery address; when provided, deliveryAddress/deliveryRegion/deliveryPhone are derived from it */
+export class DeliveryAddressDetailsDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiProperty()
+  @IsString()
+  phone: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiProperty()
+  @IsString()
+  street: string;
+
+  @ApiProperty()
+  @IsString()
+  city: string;
+
+  @ApiProperty()
+  @IsString()
+  region: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @ApiProperty({ required: false, description: 'Ignored here; use top-level paymentMethod' })
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+}
+
 export class CreateOrderDto {
   @ApiProperty({ type: [OrderItemDto] })
   @IsArray()
@@ -50,22 +95,34 @@ export class CreateOrderDto {
   @IsEnum(DeliveryMethod)
   deliveryMethod: DeliveryMethod;
 
-  @ApiProperty()
+  /** Full address string. Optional if deliveryAddressDetails is provided. */
+  @ApiProperty({ required: false })
+  @ValidateIf((o) => !o.deliveryAddressDetails)
   @IsString()
-  deliveryAddress: string;
+  deliveryAddress?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @ValidateIf((o) => !o.deliveryAddressDetails)
   @IsString()
-  deliveryRegion: string;
+  deliveryRegion?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   deliveryCity?: string;
 
-  @ApiProperty()
+  /** Phone for delivery. Optional if deliveryAddressDetails is provided. */
+  @ApiProperty({ required: false })
+  @ValidateIf((o) => !o.deliveryAddressDetails)
   @IsString()
-  deliveryPhone: string;
+  deliveryPhone?: string;
+
+  /** Nested address; when set, deliveryAddress/deliveryRegion/deliveryPhone are built from this */
+  @ApiProperty({ required: false, type: () => DeliveryAddressDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeliveryAddressDetailsDto)
+  deliveryAddressDetails?: DeliveryAddressDetailsDto;
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -178,6 +178,11 @@ export class PaymentsService {
       ttlMinutes: 15,
     });
 
+    if (!result?.redirectUrl) {
+      throw new BadRequestException(
+        'BOG payment session could not be created; missing redirect URL',
+      );
+    }
     await this.ordersService.setOrderBogOrderId(orderId, result.orderId);
     return { redirectUrl: result.redirectUrl };
   }

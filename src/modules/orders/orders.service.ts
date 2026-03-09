@@ -23,6 +23,15 @@ export class OrdersService {
   ) {}
 
   async create(buyerId: string, createDto: CreateOrderDto): Promise<any> {
+    // Normalize nested delivery address to flat fields if provided
+    if (createDto.deliveryAddressDetails) {
+      const d = createDto.deliveryAddressDetails;
+      const namePart = [d.firstName, d.lastName].filter(Boolean).join(' ');
+      const addressParts = [d.street, d.city, d.region, d.postalCode].filter(Boolean);
+      createDto.deliveryAddress = [namePart, addressParts.join(', ')].filter(Boolean).join(', ') || d.street;
+      createDto.deliveryRegion = d.region;
+      createDto.deliveryPhone = d.phone;
+    }
     const { items, paymentMethod, deliveryMethod, deliveryAddress, ...deliveryInfo } = createDto;
 
     // Validate products and calculate totals
