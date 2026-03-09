@@ -29,11 +29,20 @@ export class OrdersService {
     let subtotal = 0;
     const orderItems: any[] = [];
 
+    // Split payments (e.g. BOG) support max 10 recipient accounts per order
+    const MAX_SHOPS_PER_ORDER = 10;
+    const sellerIdsInOrder = new Set<string>();
+    const stockUpdates: { productId: string; quantity: number; stock: number; totalSales: number }[] = [];
+
     for (const item of items) {
       const product: any = await this.firestoreService.findById('products', item.productId);
 
       if (!product || !product.isActive) {
         throw new BadRequestException(`Product ${item.productId} not found or inactive`);
+      }
+
+      if (product.sellerId) {
+        sellerIdsInOrder.add(product.sellerId);
       }
 
       if (product.stock < item.quantity) {
@@ -51,14 +60,12 @@ export class OrdersService {
         price,
         quantity: item.quantity,
         total: itemTotal,
-        sellerId: product.sellerId, // Add sellerId to each item
-        status: OrderStatus.PENDING, // Add item-level status
+        sellerId: product.sellerId,
+        status: OrderStatus.PENDING,
       };
 
-      // Add seller pickup location if delivery method is PICKUP
       if (deliveryMethod === DeliveryMethod.PICKUP && product.sellerId) {
         try {
-          // Find seller profile by userId (sellerId is the userId)
           const sellerProfile: any = await this.firestoreService.findOneBy(
             'seller_profiles',
             'userId',
@@ -66,7 +73,6 @@ export class OrdersService {
           );
           if (sellerProfile && sellerProfile.address) {
             orderItem.pickupLocation = sellerProfile.address;
-            // Also add shop name if available
             if (sellerProfile.shopName) {
               orderItem.pickupShopName = sellerProfile.shopName;
             }
@@ -76,20 +82,28 @@ export class OrdersService {
         }
       }
 
-      // Only add variant fields if they exist
-      if (item.variantSize) {
-        orderItem.variantSize = item.variantSize;
-      }
-      if (item.variantColor) {
-        orderItem.variantColor = item.variantColor;
-      }
+      if (item.variantSize) orderItem.variantSize = item.variantSize;
+      if (item.variantColor) orderItem.variantColor = item.variantColor;
 
       orderItems.push(orderItem);
+      stockUpdates.push({
+        productId: product.id,
+        quantity: item.quantity,
+        stock: product.stock,
+        totalSales: product.totalSales || 0,
+      });
+    }
 
-      // Update product stock
-      await this.firestoreService.update('products', product.id, {
-        stock: product.stock - item.quantity,
-        totalSales: (product.totalSales || 0) + item.quantity,
+    if (sellerIdsInOrder.size > MAX_SHOPS_PER_ORDER) {
+      throw new BadRequestException(
+        `შეკვეთაში მაქსიმუმ ${MAX_SHOPS_PER_ORDER} სხვადასხვა მაღაზიის ნივთი შეიძლება. გთხოვთ წაშალოთ ნივთები ან განახორციელოთ ცალკე შეკვეთა.`
+      );
+    }
+
+    for (const u of stockUpdates) {
+      await this.firestoreService.update('products', u.productId, {
+        stock: u.stock - u.quantity,
+        totalSales: u.totalSales + u.quantity,
       });
     }
 
@@ -460,7 +474,27 @@ export class OrdersService {
   }
 
   /**
-   * Mark order as paid (called from Flitt webhook).
+   * Store BOG order id on our order (for callback lookup).
+   */
+  async setOrderBogOrderId(orderId: string, bogOrderId: string): Promise<void> {
+    try {
+      const order: any = await this.firestoreService.findById('orders', orderId);
+      if (!order) return;
+      await this.firestoreService.update('orders', orderId, { bogOrderId });
+    } catch (e) {
+      console.error('setOrderBogOrderId failed:', e);
+    }
+  }
+
+  /**
+   * Find order by BOG order id (for callback).
+   */
+  async findByBogOrderId(bogOrderId: string): Promise<any | null> {
+    return this.firestoreService.findOneBy('orders', 'bogOrderId', bogOrderId);
+  }
+
+  /**
+   * Mark order as paid (called from Flitt or BOG webhook).
    */
   async setOrderPaid(orderId: string): Promise<void> {
     try {

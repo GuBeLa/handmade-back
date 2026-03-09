@@ -5,6 +5,8 @@ import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { OrdersService } from '../orders/orders.service';
 import axios from 'axios';
+import { BogPaymentService } from './bog/bog-payment.service';
+import { getBogConfigFromEnv } from './bog/bog-payment.config';
 
 // Lazy load Flitt Node.js SDK
 let FlittSDK: any = null;
@@ -48,12 +50,14 @@ export class PaymentsService {
   /** Webhook HMAC secret (x-signature header). Never trust webhook without this. */
   private readonly flittWebhookSecret: string;
   private flittSDKInstance: any = null;
+  private readonly bogService: BogPaymentService;
 
   constructor(
     private configService: ConfigService,
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
   ) {
+    this.bogService = new BogPaymentService(getBogConfigFromEnv());
     this.flittMerchantId = stripEnvQuotes(this.configService.get<string>('FLITT_MERCHANT_ID') || '');
     this.flittWebhookSecret = stripEnvQuotes(this.configService.get<string>('FLITT_WEBHOOK_SECRET') || '');
     this.flittPaymentKey = stripEnvQuotes(this.configService.get<string>('FLITT_PAYMENT_KEY') || '');
@@ -119,6 +123,81 @@ export class PaymentsService {
       }
     }
     return this.flittSDKInstance;
+  }
+
+  /**
+   * Create BOG (Bank of Georgia) card payment session.
+   * Returns redirect URL; store bogOrderId on order for callback.
+   * Portable: uses backend/src/modules/payments/bog/ module.
+   */
+  async createBogCheckoutSession(
+    orderId: string,
+    successUrl: string,
+    failUrl: string,
+  ): Promise<{ redirectUrl: string }> {
+    const order: any = await this.ordersService.findOne(orderId);
+    if (!order) {
+      throw new BadRequestException('Order not found');
+    }
+    if (order.isPaid) {
+      throw new BadRequestException('Order already paid');
+    }
+    const port = this.configService.get<string>('PORT') || '3005';
+    const apiBaseUrl =
+      this.configService.get<string>('API_BASE_URL') ||
+      (process.env.NODE_ENV === 'production'
+        ? this.configService.get<string>('API_BASE_URL') || 'https://api.handmade-marketplace.ge/api'
+        : `http://localhost:${port}/api`);
+    const callbackUrl = `${apiBaseUrl.replace(/\/$/, '')}/payments/bog/callback`;
+
+    const basket = (order.items || []).map((item: any) => ({
+      product_id: item.productId || item.product?.id || 'item',
+      description: (item.productTitle || item.product?.title || 'Product').slice(0, 255),
+      quantity: item.quantity || 1,
+      unit_price: item.price ?? 0,
+    }));
+
+    const totalAmount = Number(order.total);
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      throw new BadRequestException('Invalid order total');
+    }
+
+    const token = await this.bogService.getAccessToken();
+    const result = await this.bogService.createOrder(token, {
+      externalOrderId: orderId,
+      callbackUrl,
+      successUrl,
+      failUrl,
+      totalAmount,
+      basket,
+      buyerFullName: order.buyer?.firstName
+        ? [order.buyer.firstName, order.buyer.lastName].filter(Boolean).join(' ')
+        : undefined,
+      buyerMaskedEmail: order.buyer?.email,
+      buyerMaskedPhone: order.buyer?.phone,
+      ttlMinutes: 15,
+    });
+
+    await this.ordersService.setOrderBogOrderId(orderId, result.orderId);
+    return { redirectUrl: result.redirectUrl };
+  }
+
+  /**
+   * Handle BOG callback (POST from BOG). Verify signature then update order if payment success.
+   */
+  async handleBogCallback(rawBody: Buffer | string, signature: string): Promise<{ received: boolean }> {
+    if (!this.bogService.verifyCallbackSignature(rawBody, signature)) {
+      throw new BadRequestException('Invalid BOG callback signature');
+    }
+    const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : JSON.parse((rawBody as Buffer).toString('utf8'));
+    const { bogOrderId, success } = this.bogService.parseCallbackBody(body);
+    if (success && bogOrderId) {
+      const order = await this.ordersService.findByBogOrderId(bogOrderId);
+      if (order?.id) {
+        await this.ordersService.setOrderPaid(order.id);
+      }
+    }
+    return { received: true };
   }
 
   /**

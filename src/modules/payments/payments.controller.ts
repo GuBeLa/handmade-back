@@ -7,6 +7,7 @@ import {
   Req,
   Headers,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
@@ -15,6 +16,7 @@ import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
 import { CreateHostedCheckoutDto } from './dto/create-hosted-checkout.dto';
+import { CreateBogCheckoutDto } from './dto/create-bog-checkout.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
 @ApiTags('Payments')
@@ -72,5 +74,30 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Flitt payment callback (legacy)' })
   async handleFlittCallback(@Body() callbackData: any) {
     return this.paymentsService.handleFlittCallback(callbackData);
+  }
+
+  @Post('bog/create-checkout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create BOG card payment session; returns redirectUrl' })
+  async createBogCheckout(@Request() req, @Body() dto: CreateBogCheckoutDto) {
+    return this.paymentsService.createBogCheckoutSession(
+      dto.orderId,
+      dto.successUrl,
+      dto.failUrl,
+    );
+  }
+
+  @Post('bog/callback')
+  @ApiOperation({ summary: 'BOG payment callback (server-to-server)' })
+  async handleBogCallback(
+    @Req() req: RawBodyRequest<ExpressRequest>,
+    @Headers('Callback-Signature') signature: string,
+  ) {
+    const rawBody = req.rawBody ?? (req.body ? Buffer.from(JSON.stringify(req.body), 'utf8') : null);
+    if (!rawBody) {
+      throw new BadRequestException('Missing request body');
+    }
+    return this.paymentsService.handleBogCallback(rawBody, signature || '');
   }
 }
