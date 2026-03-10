@@ -147,7 +147,7 @@ export class PaymentsService {
     const apiBaseUrl =
       this.configService.get<string>('API_BASE_URL') ||
       (process.env.NODE_ENV === 'production'
-        ? this.configService.get<string>('API_BASE_URL') || 'https://api.handmade-marketplace.ge/api'
+        ? this.configService.get<string>('API_BASE_URL') || 'https://handmade-back-seven.vercel.app/api'
         : `http://localhost:${port}/api`);
     const callbackUrl = `${apiBaseUrl.replace(/\/$/, '')}/payments/bog/callback`;
 
@@ -284,7 +284,7 @@ export class PaymentsService {
       // Get API base URL for callback
       const port = this.configService.get<string>('PORT') || '3005';
       const apiBaseUrl = process.env.NODE_ENV === 'production' 
-        ? this.configService.get<string>('API_BASE_URL') || `https://api.handmade-marketplace.ge/api`
+        ? this.configService.get<string>('API_BASE_URL') || `https://handmade-back-seven.vercel.app/api`
         : `http://localhost:${port}/api`;
 
       // Try to use Flitt Node.js SDK first (same signature/request as official SDK)
