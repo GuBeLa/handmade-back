@@ -150,14 +150,31 @@ export class PaymentsService {
         : `http://localhost:${port}/api`);
     const callbackUrl = `${apiBaseUrl.replace(/\/$/, '')}/payments/bog/callback`;
 
-    const basket = (order.items || []).map((item: any) => ({
-      product_id: item.productId || item.product?.id || 'item',
-      description: (item.productTitle || item.product?.title || 'Product').slice(0, 255),
-      quantity: item.quantity || 1,
-      unit_price: item.price ?? 0,
-    }));
+    const rawItems = order.items || [];
+    if (rawItems.length === 0) {
+      throw new BadRequestException('Order has no items; cannot create BOG checkout');
+    }
 
-    const totalAmount = Number(order.total);
+    const basket = rawItems.map((item: any) => {
+      const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      const unitPrice = Number(item.price);
+      const price = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0;
+      return {
+        product_id: String(item.productId || item.product?.id || 'item').slice(0, 255),
+        description: (item.productTitle || item.product?.title || 'Product').slice(0, 255),
+        quantity: qty,
+        unit_price: Math.round(price * 100) / 100,
+      };
+    });
+
+    const invalidItem = basket.find((b) => b.unit_price < 0 || !b.product_id);
+    if (invalidItem) {
+      throw new BadRequestException(
+        'Order contains invalid item (missing product id or negative price); cannot create BOG checkout',
+      );
+    }
+
+    const totalAmount = Math.round(Number(order.total) * 100) / 100;
     if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
       throw new BadRequestException('Invalid order total');
     }

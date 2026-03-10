@@ -105,15 +105,33 @@ export class BogPaymentService {
     };
 
     const url = `${this.config.apiBaseUrl}/payments/v1/ecommerce/orders`;
-    const res = await axios.post(url, body, {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Accept-Language': 'ka',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      timeout: 15000,
-    });
+    let res;
+    try {
+      res = await axios.post(url, body, {
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'Accept-Language': 'ka',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        timeout: 15000,
+      });
+    } catch (err: any) {
+      const status = err.response?.status;
+      const apiBody = err.response?.data;
+      const msg =
+        typeof apiBody === 'object'
+          ? JSON.stringify(apiBody)
+          : typeof apiBody === 'string'
+            ? apiBody
+            : err.message;
+      console.error('[BOG createOrder] Request failed', {
+        status,
+        url,
+        apiError: apiBody,
+      });
+      throw new Error(`BOG create order failed (${status}): ${msg}`);
+    }
 
     const data = res.data;
     const id = data?.id;
