@@ -10,6 +10,21 @@ export class UpdateAddressDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  firstName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   street?: string;
 
   @ApiProperty({ required: false })

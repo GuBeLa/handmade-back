@@ -6,6 +6,21 @@ export class CreateAddressDto {
   @IsString()
   label: string; // e.g., "Home", "Work", "Office"
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
   @ApiProperty()
   @IsString()
   street: string;
