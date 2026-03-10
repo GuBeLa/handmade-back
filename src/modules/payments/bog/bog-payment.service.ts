@@ -89,7 +89,7 @@ export class BogPaymentService {
           unit_price: b.unit_price,
         })),
       },
-      redirect_urls: {
+      redirect_links: {
         success: params.successUrl,
         fail: params.failUrl,
       },
