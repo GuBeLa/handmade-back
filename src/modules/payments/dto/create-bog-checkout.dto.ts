@@ -1,4 +1,4 @@
-import { IsString, IsUrl } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateBogCheckoutDto {
@@ -15,4 +15,10 @@ export class CreateBogCheckoutDto {
   @IsString()
   @IsUrl()
   failUrl: string;
+
+  @ApiProperty({ required: false, description: 'Fixed amount in GEL (e.g. 5 for reservation fee). If omitted, order total is used.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  amountInGel?: number;
 }

@@ -128,12 +128,13 @@ export class PaymentsService {
   /**
    * Create BOG (Bank of Georgia) card payment session.
    * Returns redirect URL; store bogOrderId on order for callback.
-   * Portable: uses backend/src/modules/payments/bog/ module.
+   * If amountInGel is provided (e.g. 5 for reservation), only that amount is charged and callback will set reservationFeePaid.
    */
   async createBogCheckoutSession(
     orderId: string,
     successUrl: string,
     failUrl: string,
+    amountInGel?: number,
   ): Promise<{ redirectUrl: string }> {
     const order: any = await this.ordersService.findOne(orderId);
     if (!order) {
@@ -150,31 +151,45 @@ export class PaymentsService {
         : `http://localhost:${port}/api`);
     const callbackUrl = `${apiBaseUrl.replace(/\/$/, '')}/payments/bog/callback`;
 
-    const rawItems = order.items || [];
-    if (rawItems.length === 0) {
-      throw new BadRequestException('Order has no items; cannot create BOG checkout');
+    let basket: { product_id: string; description: string; quantity: number; unit_price: number }[];
+    let totalAmount: number;
+
+    if (amountInGel != null && amountInGel > 0) {
+      totalAmount = Math.round(Number(amountInGel) * 100) / 100;
+      basket = [
+        {
+          product_id: `reservation-${orderId}`,
+          description: 'ჯავშნის საფასური',
+          quantity: 1,
+          unit_price: totalAmount,
+        },
+      ];
+      await this.ordersService.setOrderBogReservationOnly(orderId, true);
+    } else {
+      const rawItems = order.items || [];
+      if (rawItems.length === 0) {
+        throw new BadRequestException('Order has no items; cannot create BOG checkout');
+      }
+      basket = rawItems.map((item: any) => {
+        const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+        const unitPrice = Number(item.price);
+        const price = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0;
+        return {
+          product_id: String(item.productId || item.product?.id || 'item').slice(0, 255),
+          description: (item.productTitle || item.product?.title || 'Product').slice(0, 255),
+          quantity: qty,
+          unit_price: Math.round(price * 100) / 100,
+        };
+      });
+      const invalidItem = basket.find((b) => b.unit_price < 0 || !b.product_id);
+      if (invalidItem) {
+        throw new BadRequestException(
+          'Order contains invalid item (missing product id or negative price); cannot create BOG checkout',
+        );
+      }
+      totalAmount = Math.round(Number(order.total) * 100) / 100;
     }
 
-    const basket = rawItems.map((item: any) => {
-      const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
-      const unitPrice = Number(item.price);
-      const price = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0;
-      return {
-        product_id: String(item.productId || item.product?.id || 'item').slice(0, 255),
-        description: (item.productTitle || item.product?.title || 'Product').slice(0, 255),
-        quantity: qty,
-        unit_price: Math.round(price * 100) / 100,
-      };
-    });
-
-    const invalidItem = basket.find((b) => b.unit_price < 0 || !b.product_id);
-    if (invalidItem) {
-      throw new BadRequestException(
-        'Order contains invalid item (missing product id or negative price); cannot create BOG checkout',
-      );
-    }
-
-    const totalAmount = Math.round(Number(order.total) * 100) / 100;
     if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
       throw new BadRequestException('Invalid order total');
     }
@@ -216,7 +231,11 @@ export class PaymentsService {
     if (success && bogOrderId) {
       const order = await this.ordersService.findByBogOrderId(bogOrderId);
       if (order?.id) {
-        await this.ordersService.setOrderPaid(order.id);
+        if (order.bogReservationOnly) {
+          await this.ordersService.setOrderReservationFeePaid(order.id);
+        } else {
+          await this.ordersService.setOrderPaid(order.id);
+        }
       }
     }
     return { received: true };

@@ -496,6 +496,35 @@ export class OrdersService {
   }
 
   /**
+   * Mark that BOG payment for this order is reservation-only (e.g. 5 GEL). Callback will set reservationFeePaid.
+   */
+  async setOrderBogReservationOnly(orderId: string, value: boolean): Promise<void> {
+    try {
+      const order: any = await this.firestoreService.findById('orders', orderId);
+      if (!order) return;
+      await this.firestoreService.update('orders', orderId, { bogReservationOnly: value });
+    } catch (e) {
+      console.error('setOrderBogReservationOnly failed:', e);
+    }
+  }
+
+  /**
+   * Mark order reservation fee as paid (for pay-on-site: 5 GEL paid by card, rest paid on pickup).
+   */
+  async setOrderReservationFeePaid(orderId: string): Promise<void> {
+    try {
+      const order: any = await this.firestoreService.findById('orders', orderId);
+      if (!order) return;
+      await this.firestoreService.update('orders', orderId, {
+        reservationFeePaid: true,
+        bogReservationOnly: false,
+      });
+    } catch (e) {
+      console.error('setOrderReservationFeePaid failed:', e);
+    }
+  }
+
+  /**
    * Find order by BOG order id (for callback).
    */
   async findByBogOrderId(bogOrderId: string): Promise<any | null> {

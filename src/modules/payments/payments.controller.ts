@@ -85,6 +85,7 @@ export class PaymentsController {
       dto.orderId,
       dto.successUrl,
       dto.failUrl,
+      dto.amountInGel,
     );
   }
 
