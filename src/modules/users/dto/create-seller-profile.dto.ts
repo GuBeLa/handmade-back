@@ -114,5 +114,11 @@ export class CreateSellerProfileDto {
   @IsOptional()
   @IsString()
   taxNumber?: string; // საგადასახადო ნომერი (თუ არის)
+
+  /** IBAN for BOG split payments (GEL). Required for receiving split payouts. */
+  @ApiProperty({ required: false, description: 'IBAN for receiving payments (e.g. GE00BG0000000000000000)' })
+  @IsOptional()
+  @IsString()
+  iban?: string;
 }
 

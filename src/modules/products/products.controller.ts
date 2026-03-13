@@ -9,8 +9,15 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -19,6 +26,8 @@ import { UserRole } from '../../common/enums/user-role.enum';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
+
+const storage = memoryStorage();
 
 @ApiTags('Products')
 @Controller('products')
@@ -45,16 +54,48 @@ export class ProductsController {
     return this.productsService.getSellerProducts(req.user.sub);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get product by ID' })
-  async findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  @Get('excel-template')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SELLER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download Excel template for product import' })
+  async getExcelTemplate(@Res() res: Response) {
+    const buffer = this.productsService.getExcelTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="product-import-template.xlsx"');
+    res.send(buffer);
+  }
+
+  @Post('import-excel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SELLER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage,
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiOperation({ summary: 'Import products from Excel file' })
+  async importExcel(@Request() req, @UploadedFile() file: Express.Multer.File) {
+    if (!file?.buffer) {
+      throw new BadRequestException('ატვირთეთ Excel ფაილი (.xlsx)');
+    }
+    return this.productsService.importFromExcel(req.user.sub, file.buffer);
   }
 
   @Get('slug/:slug')
-  @ApiOperation({ summary: 'Get product by slug' })
+  @ApiOperation({ summary: 'Get product by slug (SEO-friendly URL)' })
   async findBySlug(@Param('slug') slug: string) {
     return this.productsService.findBySlug(slug);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get product by ID (fallback for backward compatibility)' })
+  async findOne(@Param('id') id: string) {
+    return this.productsService.findOne(id);
   }
 
   @Post()

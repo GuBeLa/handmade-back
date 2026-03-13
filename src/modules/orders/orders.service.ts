@@ -38,8 +38,8 @@ export class OrdersService {
     let subtotal = 0;
     const orderItems: any[] = [];
 
-    // Split payments (e.g. BOG) support max 10 recipient accounts per order
-    const MAX_SHOPS_PER_ORDER = 10;
+    // BOG split allows max 10 accounts: 1 platform + 9 merchants
+    const MAX_SHOPS_PER_ORDER = 9;
     const sellerIdsInOrder = new Set<string>();
     const stockUpdates: { productId: string; quantity: number; stock: number; totalSales: number }[] = [];
 
@@ -105,7 +105,7 @@ export class OrdersService {
 
     if (sellerIdsInOrder.size > MAX_SHOPS_PER_ORDER) {
       throw new BadRequestException(
-        `შეკვეთაში მაქსიმუმ ${MAX_SHOPS_PER_ORDER} სხვადასხვა მაღაზიის ნივთი შეიძლება. გთხოვთ წაშალოთ ნივთები ან განახორციელოთ ცალკე შეკვეთა.`
+        `ერთ შეკვეთაში მაქსიმუმ ${MAX_SHOPS_PER_ORDER} მაღაზია დასაშვებია (ბარათით გადახდისას თანხა იყოფა თითო მაღაზიასა და პლატფორმაზე). გთხოვთ წაშალოთ ნივთები ან განახორციელოთ ცალკე შეკვეთა.`
       );
     }
 

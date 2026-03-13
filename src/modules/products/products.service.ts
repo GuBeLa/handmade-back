@@ -4,22 +4,46 @@ import { ModerationStatus } from '../../common/enums/moderation-status.enum';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class ProductsService {
   constructor(private firestoreService: FirestoreService) {}
 
-  async create(sellerId: string, createDto: CreateProductDto): Promise<any> {
-    // Generate slug
-    const slug = createDto.title
+  private toSlug(text: string): string {
+    if (!text?.trim()) return '';
+    return text
+      .trim()
       .toLowerCase()
+      .replace(/[\u10A0-\u10FF]/g, '') // remove Georgian for ASCII-only URL
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
+      .replace(/(^-|-$)/g, '') || '';
+  }
+
+  private async ensureUniqueSlug(baseSlug: string, excludeProductId?: string): Promise<string> {
+    let slug = baseSlug;
+    let attempts = 0;
+    const maxAttempts = 100;
+    while (attempts < maxAttempts) {
+      const existing = await this.firestoreService.findOneBy('products', 'slug', slug);
+      if (!existing || (excludeProductId && existing.id === excludeProductId)) return slug;
+      slug = `${baseSlug}-${Date.now().toString(36)}${attempts > 0 ? attempts : ''}`;
+      attempts++;
+    }
+    return `${baseSlug}-${Date.now()}`;
+  }
+
+  async create(sellerId: string, createDto: CreateProductDto): Promise<any> {
+    const customSlug = createDto.slug?.trim().replace(/[^a-z0-9-]/gi, '-').replace(/(^-|-$)/g, '');
+    const baseSlug = customSlug || this.toSlug(createDto.title) || 'product';
+    const slug = await this.ensureUniqueSlug(
+      baseSlug.length >= 2 ? baseSlug : `${baseSlug}-${Date.now().toString(36)}`,
+    );
 
     // Calculate discountPercentage and isOnSale if discountPrice is provided
     const productData: any = {
       ...createDto,
-      slug: `${slug}-${Date.now()}`,
+      slug,
       sellerId,
       moderationStatus: ModerationStatus.PENDING,
       averageRating: 0,
@@ -158,10 +182,16 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    // Increment views
-    await this.firestoreService.update('products', id, {
-      views: (product.views || 0) + 1,
-    });
+    // Backfill slug for legacy products that don't have one
+    let updateData: any = { views: (product.views || 0) + 1 };
+    if (!product.slug || typeof product.slug !== 'string' || product.slug.length < 2) {
+      const baseSlug = this.toSlug(product.title || 'product') || 'product';
+      const newSlug = await this.ensureUniqueSlug(`${baseSlug}-${id.slice(-8)}`, id);
+      updateData.slug = newSlug;
+    }
+
+    await this.firestoreService.update('products', id, updateData);
+    if (updateData.slug) product.slug = updateData.slug;
 
     // Load related data
     product.category = await this.firestoreService.findById('categories', product.categoryId);
@@ -173,8 +203,6 @@ export class ProductsService {
         'userId',
         seller.id,
       );
-      // Note: Badges are calculated in getSellerPublicProfile endpoint
-      // For product detail, badges will be loaded via useProductDetail hook which calls getPublicSellerProfile
     }
 
     return product;
@@ -207,10 +235,15 @@ export class ProductsService {
     }
 
     // Extract images and variants separately to handle them differently
-    const { images, variants, discountPrice, price, ...updateData } = updateDto;
+    const { images, variants, discountPrice, price, slug: slugUpdate, ...updateData } = updateDto;
 
     // Calculate discountPercentage and isOnSale if discountPrice is provided
     const finalUpdateData: any = { ...updateData };
+
+    if (slugUpdate !== undefined && slugUpdate.trim()) {
+      const newSlug = await this.ensureUniqueSlug(slugUpdate.trim(), id);
+      finalUpdateData.slug = newSlug;
+    }
     
     // Add price if provided
     if (price !== undefined) {
@@ -330,5 +363,185 @@ export class ProductsService {
       ref.where('region', '==', region),
     );
     return profiles.map((p: any) => p.userId);
+  }
+
+  /** Expected Excel columns: title, description, categoryId, price, discountPrice, stock, material, weight, dimensions, careInstructions, image1..image5 (required), image6..image10 (optional) */
+  async importFromExcel(
+    sellerId: string,
+    buffer: Buffer,
+  ): Promise<{ created: number; errors: { row: number; message: string }[] }> {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!rows || rows.length < 2) {
+      throw new BadRequestException('Excel ფაილი უნდა შეიცავდეს სათაურის row-ს და მინიმუმ ერთ მონაცემთა row-ს');
+    }
+    const headers = (rows[0] as any[]).map((h) => String(h || '').trim().toLowerCase());
+    const dataRows = rows.slice(1);
+    const created: number[] = [];
+    const errors: { row: number; message: string }[] = [];
+    const getCol = (key: string): number => {
+      const i = headers.indexOf(key.toLowerCase());
+      return i >= 0 ? i : -1;
+    };
+    const idx = {
+      title: getCol('title'),
+      description: getCol('description'),
+      categoryId: getCol('categoryid'),
+      price: getCol('price'),
+      discountPrice: getCol('discountprice'),
+      stock: getCol('stock'),
+      material: getCol('material'),
+      weight: getCol('weight'),
+      dimensions: getCol('dimensions'),
+      careInstructions: getCol('careinstructions'),
+      image1: getCol('image1'),
+      image2: getCol('image2'),
+      image3: getCol('image3'),
+      image4: getCol('image4'),
+      image5: getCol('image5'),
+    };
+    const imageCols = [getCol('image6'), getCol('image7'), getCol('image8'), getCol('image9'), getCol('image10')].filter((i) => i >= 0);
+    if (idx.title < 0 || idx.description < 0 || idx.categoryId < 0 || idx.price < 0 || idx.image1 < 0 || idx.image2 < 0 || idx.image3 < 0 || idx.image4 < 0 || idx.image5 < 0) {
+      throw new BadRequestException(
+        'Excel-ში აუცილებელი სვეტებია: title, description, categoryId, price, image1, image2, image3, image4, image5. გამოიყენეთ ჩამოტვირთული შაბლონი.',
+      );
+    }
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i] as any[];
+      const rowNum = i + 2;
+      const get = (col: number) => (col >= 0 && row[col] !== undefined && row[col] !== null ? String(row[col]).trim() : '');
+      const getNum = (col: number) => {
+        const v = col >= 0 ? row[col] : undefined;
+        if (v === undefined || v === null || v === '') return undefined;
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+      };
+      const title = get(idx.title);
+      const description = get(idx.description);
+      const categoryId = get(idx.categoryId);
+      const priceVal = getNum(idx.price);
+      const discountPriceVal = getNum(idx.discountPrice);
+      const stockVal = getNum(idx.stock);
+      const images: string[] = [
+        get(idx.image1),
+        get(idx.image2),
+        get(idx.image3),
+        get(idx.image4),
+        get(idx.image5),
+      ].filter((url) => url && url.startsWith('http'));
+      imageCols.forEach((col) => {
+        const url = get(col);
+        if (url && url.startsWith('http')) images.push(url);
+      });
+      if (!title || title.length < 3) {
+        errors.push({ row: rowNum, message: 'სახელი (title) აუცილებელია, მინიმუმ 3 სიმბოლო' });
+        continue;
+      }
+      if (!description || description.length < 10) {
+        errors.push({ row: rowNum, message: 'აღწერა (description) აუცილებელია, მინიმუმ 10 სიმბოლო' });
+        continue;
+      }
+      if (!categoryId) {
+        errors.push({ row: rowNum, message: 'categoryId აუცილებელია' });
+        continue;
+      }
+      if (priceVal === undefined || priceVal < 0) {
+        errors.push({ row: rowNum, message: 'ფასი (price) უნდა იყოს 0 ან მეტი' });
+        continue;
+      }
+      if (images.length < 5) {
+        errors.push({ row: rowNum, message: 'საჭიროა მინიმუმ 5 სურათის URL (image1–image5)' });
+        continue;
+      }
+      try {
+        await this.create(sellerId, {
+          title,
+          description,
+          categoryId,
+          price: priceVal,
+          discountPrice: discountPriceVal !== undefined && discountPriceVal >= 0 && discountPriceVal < priceVal ? discountPriceVal : undefined,
+          stock: stockVal !== undefined && stockVal >= 0 ? Math.floor(stockVal) : 0,
+          material: get(idx.material) || undefined,
+          weight: get(idx.weight) || undefined,
+          dimensions: get(idx.dimensions) || undefined,
+          careInstructions: get(idx.careInstructions) || undefined,
+          images,
+        });
+        created.push(rowNum);
+      } catch (err: any) {
+        errors.push({ row: rowNum, message: err?.message || 'პროდუქტის შექმნა ვერ მოხერხდა' });
+      }
+    }
+    return { created: created.length, errors };
+  }
+
+  getExcelTemplate(): Buffer {
+    const headers = [
+      'title',
+      'description',
+      'categoryId',
+      'price',
+      'discountPrice',
+      'stock',
+      'material',
+      'weight',
+      'dimensions',
+      'careInstructions',
+      'image1',
+      'image2',
+      'image3',
+      'image4',
+      'image5',
+      'image6',
+      'image7',
+      'image8',
+      'image9',
+      'image10',
+    ];
+    const exampleRow = [
+      'პროდუქტის სახელი',
+      'პროდუქტის დეტალური აღწერა (მინ. 10 სიმბოლო)',
+      'კატეგორიის ID (იხ. კატეგორიების სია)',
+      29.99,
+      24.99,
+      10,
+      'ბამბა',
+      '200გ',
+      '20x30 სმ',
+      'ხელით სარეცხი',
+      'https://example.com/photo1.jpg',
+      'https://example.com/photo2.jpg',
+      'https://example.com/photo3.jpg',
+      'https://example.com/photo4.jpg',
+      'https://example.com/photo5.jpg',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'პროდუქტები');
+    const instructionRows = [
+      ['სვეტის სახელი', 'აღწერა', 'სავალდებულო?'],
+      ['title', 'პროდუქტის სახელი (მინ. 3 სიმბოლო)', 'დიახ'],
+      ['description', 'აღწერა (მინ. 10 სიმბოლო)', 'დიახ'],
+      ['categoryId', 'კატეგორიის ID – აიღეთ საიტიდან კატეგორიების სიიდან', 'დიახ'],
+      ['price', 'ფასი (₾)', 'დიახ'],
+      ['discountPrice', 'ფასდაკლებული ფასი (₾)', 'არა'],
+      ['stock', 'მარაგის რაოდენობა', 'არა (0 იგულისხმება)'],
+      ['material', 'მასალა', 'არა'],
+      ['weight', 'წონა', 'არა'],
+      ['dimensions', 'ზომები', 'არა'],
+      ['careInstructions', 'მოვლის ინსტრუქცია', 'არა'],
+      ['image1 ... image5', 'სურათების URL-ები (მინ. 5) – უნდა იყოს https://', 'დიახ'],
+      ['image6 ... image10', 'დამატებითი სურათების URL-ები', 'არა'],
+    ];
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructionRows);
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'ინსტრუქცია');
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
   }
 }

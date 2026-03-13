@@ -16,6 +16,10 @@ export interface BogPaymentConfig {
   apiBaseUrl: string;
   /** Public key (PEM) for callback signature verification (SHA256withRSA). From BOG docs or env. */
   callbackPublicKeyPem: string;
+  /** Platform IBAN for split payment commission (GEL). Optional; if set, split is used. */
+  platformIban?: string;
+  /** Description for platform split entry (max 25 chars). */
+  platformSplitDescription?: string;
 }
 
 export function getBogConfigFromEnv(): BogPaymentConfig {
@@ -41,11 +45,15 @@ GyzploVV0NflhwBGeWnvQANUQGr87gsP5k2JG1z5EwnMybJQ7i3XT726rJMaV6QW
 sY5hP72Mtv1I1zL2d9FXm9FWOzbpcXCyxuEBXvqqOHzogri8C7KRRYKyk97Ri7D6
 8wIDAQAB
 -----END PUBLIC KEY-----`;
+  const platformIban = process.env.BOG_PLATFORM_IBAN?.trim() || undefined;
+  const platformSplitDescription = (process.env.BOG_PLATFORM_SPLIT_DESCRIPTION || 'Platform commission').slice(0, 25);
   return {
     clientId,
     clientSecret,
     tokenUrl,
     apiBaseUrl,
     callbackPublicKeyPem,
+    platformIban,
+    platformSplitDescription,
   };
 }

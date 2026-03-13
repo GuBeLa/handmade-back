@@ -45,6 +45,13 @@ export class CreateProductDto {
   @MinLength(3)
   title: string;
 
+  /** SEO-friendly URL segment. If omitted, generated from title (e.g. "My Product" → "my-product-1739..."). */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  slug?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

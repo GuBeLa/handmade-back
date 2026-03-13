@@ -91,5 +91,26 @@ export class UpdateSellerProfileDto {
   @IsArray()
   @IsString({ each: true })
   categories?: string[];
+
+  /** IBAN for BOG split payments (GEL). Required for receiving split payouts. Max 25 chars in description. */
+  @ApiProperty({ required: false, description: 'IBAN for receiving payments (e.g. GE00BG0000000000000000)' })
+  @IsOptional()
+  @IsString()
+  iban?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  paymentDetails?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  deliveryPolicy?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  returnPolicy?: string;
 }
 

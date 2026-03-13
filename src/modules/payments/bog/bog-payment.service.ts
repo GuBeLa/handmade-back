@@ -8,6 +8,14 @@ import * as crypto from 'crypto';
 import axios from 'axios';
 import type { BogPaymentConfig } from './bog-payment.config';
 
+/** BOG split payment entry (max 10 accounts per order, amount in GEL, description max 25 chars). */
+export interface BogSplitPaymentEntry {
+  amount: number;
+  percent?: null;
+  iban: string;
+  description: string;
+}
+
 export interface BogCreateOrderParams {
   /** Our internal order id (external_order_id in BOG). */
   externalOrderId: string;
@@ -34,6 +42,8 @@ export interface BogCreateOrderParams {
   buyerMaskedPhone?: string;
   /** TTL in minutes (2–1440). Default 15. */
   ttlMinutes?: number;
+  /** Optional: split payments (max 10 entries). Each business gets amount, platform gets commission. */
+  splitPayments?: BogSplitPaymentEntry[];
 }
 
 export interface BogCreateOrderResult {
@@ -76,7 +86,7 @@ export class BogPaymentService {
    * Create BOG ecommerce order. Returns redirect URL for the user.
    */
   async createOrder(accessToken: string, params: BogCreateOrderParams): Promise<BogCreateOrderResult> {
-    const body = {
+    const body: Record<string, unknown> = {
       callback_url: params.callbackUrl,
       external_order_id: params.externalOrderId,
       purchase_units: {
@@ -103,6 +113,21 @@ export class BogPaymentService {
       }),
       payment_method: ['card'],
     };
+
+    if (params.splitPayments && params.splitPayments.length > 0 && params.splitPayments.length <= 10) {
+      body.config = {
+        split: {
+          split_payments: params.splitPayments.map((s) => {
+            const desc = String(s.description).slice(0, 25).replace(/[^0-9 \/\-?:().,'+a-zA-Z]/g, '') || 'Payment';
+            return {
+              amount: Math.round(s.amount * 100) / 100,
+              iban: String(s.iban).trim(),
+              description: desc,
+            };
+          }),
+        },
+      };
+    }
 
     const url = `${this.config.apiBaseUrl}/payments/v1/ecommerce/orders`;
     let res;

@@ -2,9 +2,10 @@ import { Module, forwardRef } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { OrdersModule } from '../orders/orders.module';
+import { FirestoreModule } from '../../common/services/firestore.module';
 
 @Module({
-  imports: [forwardRef(() => OrdersModule)],
+  imports: [FirestoreModule, forwardRef(() => OrdersModule)],
   controllers: [PaymentsController],
   providers: [PaymentsService],
   exports: [PaymentsService],

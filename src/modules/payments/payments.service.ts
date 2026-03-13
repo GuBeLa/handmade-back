@@ -4,9 +4,14 @@ import { CreatePaymentTokenDto } from './dto/create-payment-token.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { OrdersService } from '../orders/orders.service';
+import { FirestoreService } from '../../common/services/firestore.service';
 import axios from 'axios';
 import { BogPaymentService } from './bog/bog-payment.service';
 import { getBogConfigFromEnv } from './bog/bog-payment.config';
+import type { BogSplitPaymentEntry } from './bog/bog-payment.service';
+
+/** BOG split allows max 10 accounts: 1 platform + up to 9 merchants. */
+export const MAX_MERCHANTS_FOR_BOG_SPLIT = 9;
 
 // Lazy load Flitt Node.js SDK
 let FlittSDK: any = null;
@@ -54,6 +59,7 @@ export class PaymentsService {
 
   constructor(
     private configService: ConfigService,
+    private readonly firestoreService: FirestoreService,
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
   ) {
@@ -126,6 +132,68 @@ export class PaymentsService {
   }
 
   /**
+   * Build BOG split_payments from order: each merchant gets their share, platform gets commission.
+   * Max 9 merchants + 1 platform = 10 accounts (BOG limit). Returns undefined if split cannot be applied.
+   */
+  private async buildBogSplitPayments(order: any): Promise<BogSplitPaymentEntry[] | undefined> {
+    const bogConfig = getBogConfigFromEnv();
+    if (!bogConfig.platformIban?.trim()) {
+      return undefined;
+    }
+    const items = order.items || [];
+    const subtotal = Number(order.subtotal) || 0;
+    const commission = Number(order.commission) || 0;
+    const total = Math.round(Number(order.total) * 100) / 100;
+    if (subtotal <= 0 || total <= 0) return undefined;
+
+    const bySeller = new Map<string, number>();
+    for (const item of items) {
+      const sid = item.sellerId;
+      if (!sid) continue;
+      const itemTotal = Number(item.total) ?? (Number(item.price) || 0) * (Number(item.quantity) || 1);
+      bySeller.set(sid, (bySeller.get(sid) || 0) + itemTotal);
+    }
+    const sellerIds = Array.from(bySeller.keys());
+    if (sellerIds.length === 0 || sellerIds.length > MAX_MERCHANTS_FOR_BOG_SPLIT) {
+      return undefined;
+    }
+
+    const netToSellers = Math.max(0, total - commission);
+    const subtotalMinusCommission = Math.max(0, subtotal - commission);
+    if (subtotalMinusCommission <= 0) return undefined;
+
+    const entries: BogSplitPaymentEntry[] = [];
+    let remainingForSellers = Math.round(netToSellers * 100) / 100;
+
+    for (const sellerId of sellerIds) {
+      const sellerSubtotal = bySeller.get(sellerId) || 0;
+      const share = (netToSellers * sellerSubtotal) / subtotalMinusCommission;
+      const amount = Math.round(share * 100) / 100;
+      const profile: any = await this.firestoreService.findOneBy('seller_profiles', 'userId', sellerId);
+      const iban = profile?.iban?.trim();
+      if (!iban) return undefined;
+      const shopName = (profile?.shopName || 'Shop').slice(0, 20);
+      const desc = `Order ${(order.orderNumber || order.id || '').slice(-8)} ${shopName}`.slice(0, 25);
+      entries.push({ amount, iban, description: desc.replace(/[^0-9 \/\-?:().,'+a-zA-Z]/g, '') || 'Payment' });
+      remainingForSellers -= amount;
+    }
+    const platformAmount = Math.round(commission * 100) / 100;
+    const platformDesc = (bogConfig.platformSplitDescription || 'Platform commission').slice(0, 25);
+    entries.push({
+      amount: platformAmount,
+      iban: bogConfig.platformIban.trim(),
+      description: platformDesc.replace(/[^0-9 \/\-?:().,'+a-zA-Z]/g, '') || 'Commission',
+    });
+
+    const sum = entries.reduce((s, e) => s + e.amount, 0);
+    const diff = Math.round((total - sum) * 100) / 100;
+    if (Math.abs(diff) > 0.01 && entries.length >= 2) {
+      entries[entries.length - 1].amount = Math.round((entries[entries.length - 1].amount + diff) * 100) / 100;
+    }
+    return entries;
+  }
+
+  /**
    * Create BOG (Bank of Georgia) card payment session.
    * Returns redirect URL; store bogOrderId on order for callback.
    * If amountInGel is provided (e.g. 5 for reservation), only that amount is charged and callback will set reservationFeePaid.
@@ -194,6 +262,11 @@ export class PaymentsService {
       throw new BadRequestException('Invalid order total');
     }
 
+    let splitPayments: BogSplitPaymentEntry[] | undefined;
+    if (amountInGel == null && order.items?.length) {
+      splitPayments = await this.buildBogSplitPayments(order);
+    }
+
     const token = await this.bogService.getAccessToken();
     const result = await this.bogService.createOrder(token, {
       externalOrderId: orderId,
@@ -208,6 +281,7 @@ export class PaymentsService {
       buyerMaskedEmail: order.buyer?.email,
       buyerMaskedPhone: order.buyer?.phone,
       ttlMinutes: 15,
+      splitPayments,
     });
 
     if (!result?.redirectUrl) {

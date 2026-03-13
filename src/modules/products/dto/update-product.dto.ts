@@ -18,6 +18,13 @@ export class UpdateProductDto {
   @MinLength(3)
   title?: string;
 
+  /** SEO-friendly URL segment. If provided, must be unique. */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  slug?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
