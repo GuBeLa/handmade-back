@@ -91,6 +91,12 @@ export class UsersController {
     return this.usersService.findAllSellerProfilesForAdmin();
   }
 
+  @Get('sellers')
+  @ApiOperation({ summary: 'List all shops (public)' })
+  async getSellersPublic() {
+    return this.usersService.findAllSellerProfilesPublic();
+  }
+
   @Get('sellers/:id')
   @ApiOperation({ summary: 'Get public seller profile with follow status (optional auth)' })
   async getPublicSellerProfile(@Param('id') sellerId: string, @Request() req?: any) {

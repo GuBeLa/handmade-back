@@ -315,6 +315,31 @@ export class UsersService {
     });
   }
 
+  /** Public: list seller profiles for shop listing. */
+  async findAllSellerProfilesPublic(): Promise<any[]> {
+    const profiles: any[] = await this.firestoreService.findAll('seller_profiles');
+    const result = await Promise.all(
+      profiles.map(async (profile: any) => {
+        const user: any = await this.firestoreService.findById('users', profile.userId);
+        if (!user || (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN)) {
+          return null;
+        }
+        return {
+          userId: profile.userId,
+          shopName: profile.shopName,
+          description: profile.description,
+          logo: profile.logo,
+          coverPhoto: profile.coverPhoto,
+          region: profile.region,
+          categories: profile.categories || [],
+          followersCount: profile.followersCount || 0,
+          isVerified: profile.isVerified || false,
+        };
+      }),
+    );
+    return result.filter(Boolean);
+  }
+
   /** Admin only: list all seller profiles with user info (email, name). */
   async findAllSellerProfilesForAdmin(): Promise<any[]> {
     const profiles: any[] = await this.firestoreService.findAll('seller_profiles');

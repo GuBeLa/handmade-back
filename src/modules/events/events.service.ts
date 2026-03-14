@@ -21,7 +21,7 @@ function stripUndefined<T extends Record<string, any>>(obj: T): T {
   for (const key of Object.keys(obj) as (keyof T)[]) {
     const v = obj[key];
     if (v === undefined) continue;
-    out[key] = v && typeof v === 'object' && !(v instanceof Date) && !(v?.toMillis != null)
+    out[key] = v && typeof v === 'object' && !((v as object) instanceof Date) && !(v?.toMillis != null)
       ? stripUndefined(v as Record<string, any>) as T[keyof T]
       : v;
   }
