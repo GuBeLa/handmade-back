@@ -15,6 +15,19 @@ import { UserRole } from '../../common/enums/user-role.enum';
 
 const EVENTS_COLLECTION = 'events';
 
+/** Removes undefined values from an object (recursively). Firestore does not accept undefined. */
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const out = {} as T;
+  for (const key of Object.keys(obj) as (keyof T)[]) {
+    const v = obj[key];
+    if (v === undefined) continue;
+    out[key] = v && typeof v === 'object' && !(v instanceof Date) && !(v?.toMillis != null)
+      ? stripUndefined(v as Record<string, any>) as T[keyof T]
+      : v;
+  }
+  return out;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -68,12 +81,13 @@ export class EventsService {
       >;
       const event = await this.firestoreService.create<Event>(
         EVENTS_COLLECTION,
-        eventData,
+        stripUndefined(eventData) as Omit<Event, 'id' | 'createdAt' | 'updatedAt'>,
       );
       this.logger.log(`Event created: ${event.id} by seller: ${sellerId}`);
       return event;
     } catch (error) {
-      this.logger.error('Error creating event:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error creating event: ${message}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException('Failed to create event');
     }
   }
