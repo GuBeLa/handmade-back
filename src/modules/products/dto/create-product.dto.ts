@@ -23,6 +23,16 @@ export class ProductVariantDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  material?: string;
+
+  @ApiProperty({ required: false, description: 'Personalization text (e.g. engraved name)' })
+  @IsOptional()
+  @IsString()
+  personalization?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsNumber()
   @Min(0)
   price?: number;
