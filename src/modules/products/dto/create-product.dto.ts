@@ -112,9 +112,9 @@ export class CreateProductDto {
   @IsString()
   careInstructionsEn?: string;
 
-  @ApiProperty({ type: [String], minItems: 5 })
+  @ApiProperty({ type: [String], minItems: 2 })
   @IsArray()
-  @ArrayMinSize(5)
+  @ArrayMinSize(2)
   @IsUrl({}, { each: true })
   images: string[];
 
