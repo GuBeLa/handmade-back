@@ -1,5 +1,7 @@
-import { IsString, IsOptional, IsNumber, IsUrl, IsEmail, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsUrl, IsEmail, IsArray, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { ContractRequisitesDto } from './contract-requisites.dto';
 
 export class CreateSellerProfileDto {
   @ApiProperty()
@@ -120,5 +122,12 @@ export class CreateSellerProfileDto {
   @IsOptional()
   @IsString()
   iban?: string;
+
+  /** რეკვიზიტები ხელშეკრულებისთვის – ინახება ცალკე, გამოიყენება ღონისძიებების შექმნისას */
+  @ApiProperty({ required: false, type: ContractRequisitesDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ContractRequisitesDto)
+  contractRequisites?: ContractRequisitesDto;
 }
 

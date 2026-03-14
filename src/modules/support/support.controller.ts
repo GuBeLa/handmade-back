@@ -54,7 +54,8 @@ export class SupportController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get support ticket by ID' })
   async getTicket(@Param('id') id: string, @Request() req) {
-    return this.supportService.getTicketById(id, req.user.sub);
+    const isAdmin = req.user?.role === UserRole.ADMIN;
+    return this.supportService.getTicketById(id, req.user.sub, isAdmin);
   }
 
   @Put('tickets/:id')
@@ -66,7 +67,8 @@ export class SupportController {
     @Body() updateTicketDto: UpdateTicketDto,
     @Request() req,
   ) {
-    return this.supportService.updateTicket(id, updateTicketDto, req.user.sub);
+    const isAdmin = req.user?.role === UserRole.ADMIN;
+    return this.supportService.updateTicket(id, updateTicketDto, req.user.sub, isAdmin);
   }
 
   @Post('tickets/:id/response')

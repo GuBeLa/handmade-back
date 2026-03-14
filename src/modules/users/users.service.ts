@@ -317,10 +317,12 @@ export class UsersService {
     const result = await Promise.all(
       profiles.map(async (profile: any) => {
         const user: any = await this.firestoreService.findById('users', profile.userId);
-        const { password, refreshToken, ...userSafe } = user || {};
+        const userInfo = user
+          ? { id: user.id, email: user.email, phone: user.phone, firstName: user.firstName, lastName: user.lastName }
+          : null;
         return {
           ...profile,
-          user: userSafe ? { id: user.id, email: user.email, phone: user.phone, firstName: user.firstName, lastName: user.lastName } : null,
+          user: userInfo,
         };
       }),
     );

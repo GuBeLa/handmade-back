@@ -73,7 +73,7 @@ export class SupportService {
   /**
    * Get a single ticket by ID
    */
-  async getTicketById(ticketId: string, userId?: string): Promise<SupportTicket> {
+  async getTicketById(ticketId: string, userId?: string, isAdmin = false): Promise<SupportTicket> {
     try {
       const ticket = await this.firestoreService.findById<SupportTicket>(
         'support_tickets',
@@ -84,9 +84,8 @@ export class SupportService {
         throw new NotFoundException('Ticket not found');
       }
 
-      // Check if user has access to this ticket
-      if (userId && ticket.userId !== userId) {
-        // TODO: Check if user is admin
+      // Admin can access any ticket; otherwise user must own the ticket
+      if (!isAdmin && userId && ticket.userId !== userId) {
         throw new BadRequestException('Access denied');
       }
 
@@ -107,13 +106,13 @@ export class SupportService {
     ticketId: string,
     updateTicketDto: UpdateTicketDto,
     userId?: string,
+    isAdmin = false,
   ): Promise<SupportTicket> {
     try {
-      const ticket = await this.getTicketById(ticketId, userId);
+      const ticket = await this.getTicketById(ticketId, userId, isAdmin);
 
-      // Check if user has permission to update
-      if (userId && ticket.userId !== userId) {
-        // TODO: Check if user is admin
+      // Admin can update any ticket; otherwise user must own the ticket
+      if (!isAdmin && userId && ticket.userId !== userId) {
         throw new BadRequestException('Access denied');
       }
 
