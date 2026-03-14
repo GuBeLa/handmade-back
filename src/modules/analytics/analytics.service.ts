@@ -102,6 +102,10 @@ export class AnalyticsService {
     const monthlyNetIncome = monthlySales - monthlyExpenses;
     const totalNetIncome = totalSales - totalExpenses;
 
+    // ნახვები და კლიკები — seller-ის პროდუქტებიდან
+    const totalViews = sellerProducts.reduce((sum: number, p: any) => sum + (p.views || 0), 0);
+    const totalClicks = sellerProducts.reduce((sum: number, p: any) => sum + (p.clicks || 0), 0);
+
     return {
       totalProducts: sellerProducts.length,
       totalSales,
@@ -112,6 +116,8 @@ export class AnalyticsService {
       totalExpenses,
       monthlyNetIncome,
       totalNetIncome,
+      totalViews,
+      totalClicks,
       month: selectedMonth,
       year: selectedYear,
     };

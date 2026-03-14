@@ -68,5 +68,16 @@ export class ProductFilterDto {
   @Type(() => Boolean)
   @IsBoolean()
   isFeatured?: boolean;
+
+  /** Sort: createdAt (new), views (trending), totalSales (bestSellers) */
+  @ApiProperty({ required: false, enum: ['createdAt', 'views', 'totalSales'] })
+  @IsOptional()
+  @IsString()
+  sortBy?: 'createdAt' | 'views' | 'totalSales';
+
+  @ApiProperty({ required: false, enum: ['asc', 'desc'] })
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'asc' | 'desc';
 }
 

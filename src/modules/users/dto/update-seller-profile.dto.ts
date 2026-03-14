@@ -115,7 +115,7 @@ export class UpdateSellerProfileDto {
   @IsString()
   returnPolicy?: string;
 
-  /** რეკვიზიტები ხელშეკრულებისთვის – ინახება ცალკე, გამოიყენება ღონისძიებების შექმნისას */
+  /** რეკვიზიტები ხელშეკრულებისთვის – ინახება ცალკე, გამოიყენება მასტერკლასების შექმნისას */
   @Allow()
   @ApiProperty({ required: false, type: ContractRequisitesDto })
   @IsOptional()

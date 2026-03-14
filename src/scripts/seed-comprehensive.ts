@@ -218,7 +218,7 @@ const products = [
   {
     title: 'ვერცხლის ხელნაკეთი ყელსაბამი',
     titleEn: 'Handmade Silver Necklace',
-    description: 'ლამაზი ხელნაკეთი ვერცხლის ყელსაბამი დეტალური ორნამენტებით. სპეციალური ღონისძიებებისთვის ან ყოველდღიური ტარებისთვის.',
+    description: 'ლამაზი ხელნაკეთი ვერცხლის ყელსაბამი დეტალური ორნამენტებით. სპეციალური მასტერკლასებისთვის ან ყოველდღიური ტარებისთვის.',
     descriptionEn: 'Beautiful handcrafted silver necklace with intricate details. Perfect for special occasions or everyday wear.',
     price: 89.99,
     discountPrice: 69.99,

@@ -92,6 +92,13 @@ export class ProductsController {
     return this.productsService.findBySlug(slug);
   }
 
+  @Post(':id/click')
+  @ApiOperation({ summary: 'Record product click (e.g. add to cart) — no auth' })
+  async recordClick(@Param('id') id: string) {
+    await this.productsService.incrementClicks(id);
+    return { ok: true };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get product by ID (fallback for backward compatibility)' })
   async findOne(@Param('id') id: string) {

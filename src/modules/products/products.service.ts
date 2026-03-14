@@ -50,6 +50,7 @@ export class ProductsService {
       totalReviews: 0,
       totalSales: 0,
       views: 0,
+      clicks: 0,
       isActive: true,
       isFeatured: false,
     };
@@ -99,6 +100,8 @@ export class ProductsService {
         minRating,
         search,
         isFeatured,
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
       } = filterDto;
 
       // Get all products and filter in memory to avoid composite index requirements
@@ -128,12 +131,19 @@ export class ProductsService {
       return true;
     });
     
-    // Sort by createdAt (descending)
-    products.sort((a: any, b: any) => {
-      const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
-      const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
-      return bTime - aTime;
-    });
+    // Sort
+    const mult = sortOrder === 'asc' ? 1 : -1;
+    if (sortBy === 'views') {
+      products.sort((a: any, b: any) => mult * ((b.views || 0) - (a.views || 0)));
+    } else if (sortBy === 'totalSales') {
+      products.sort((a: any, b: any) => mult * ((b.totalSales || 0) - (a.totalSales || 0)));
+    } else {
+      products.sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
+        return mult * (bTime - aTime);
+      });
+    }
 
     // Filter by search (client-side for now, can be optimized with Algolia)
     if (search) {
@@ -206,6 +216,14 @@ export class ProductsService {
     }
 
     return product;
+  }
+
+  async incrementClicks(id: string): Promise<void> {
+    const product: any = await this.firestoreService.findById('products', id);
+    if (!product) return;
+    await this.firestoreService.update('products', id, {
+      clicks: (product.clicks || 0) + 1,
+    });
   }
 
   async findBySlug(slug: string): Promise<any> {
