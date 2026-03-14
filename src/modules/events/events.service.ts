@@ -15,6 +15,31 @@ import { UserRole } from '../../common/enums/user-role.enum';
 
 const EVENTS_COLLECTION = 'events';
 
+/** Convert Firestore Timestamp to ISO string for API responses (avoids "Invalid Date" on clients). */
+function timestampToIso(ts: any): string | null {
+  if (ts == null) return null;
+  if (typeof ts.toDate === 'function') return ts.toDate().toISOString();
+  if (typeof ts.toMillis === 'function') return new Date(ts.toMillis()).toISOString();
+  const sec = ts.seconds ?? ts._seconds;
+  if (typeof sec === 'number') return new Date(sec * 1000).toISOString();
+  return null;
+}
+
+/** Serialize event for API: startAt and doorsOpenAt as ISO strings. */
+function toEventResponse(event: Event): Event {
+  if (!event) return event;
+  const out = { ...event } as any;
+  if (event.startAt != null) {
+    const iso = timestampToIso(event.startAt);
+    if (iso) out.startAt = iso;
+  }
+  if (event.doorsOpenAt != null) {
+    const iso = timestampToIso(event.doorsOpenAt);
+    if (iso) out.doorsOpenAt = iso;
+  }
+  return out as Event;
+}
+
 /** Removes undefined values from an object (recursively). Firestore does not accept undefined. */
 function stripUndefined<T extends Record<string, any>>(obj: T): T {
   const out = {} as T;
@@ -97,7 +122,7 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException('Event not found');
     }
-    return event;
+    return toEventResponse(event);
   }
 
   async findMyEvents(sellerId: string): Promise<Event[]> {
@@ -106,11 +131,12 @@ export class EventsService {
       'sellerId',
       sellerId,
     );
-    return events.sort((a, b) => {
-      const aTime = a.startAt?.toMillis?.() ?? 0;
-      const bTime = b.startAt?.toMillis?.() ?? 0;
+    const sorted = events.sort((a, b) => {
+      const aTime = a.startAt?.toMillis?.() ?? (typeof (a.startAt as any)?.seconds === 'number' ? (a.startAt as any).seconds * 1000 : 0);
+      const bTime = b.startAt?.toMillis?.() ?? (typeof (b.startAt as any)?.seconds === 'number' ? (b.startAt as any).seconds * 1000 : 0);
       return aTime - bTime;
     });
+    return sorted.map(toEventResponse);
   }
 
   async findAll(filters?: { sellerId?: string; status?: string; isMasterclass?: boolean }): Promise<Event[]> {
@@ -130,11 +156,12 @@ export class EventsService {
     if (filters?.isMasterclass != null) {
       events = events.filter((e) => !!e.isMasterclass === !!filters.isMasterclass);
     }
-    return events.sort((a, b) => {
-      const aTime = a.startAt?.toMillis?.() ?? 0;
-      const bTime = b.startAt?.toMillis?.() ?? 0;
+    const sorted = events.sort((a, b) => {
+      const aTime = a.startAt?.toMillis?.() ?? (typeof (a.startAt as any)?.seconds === 'number' ? (a.startAt as any).seconds * 1000 : 0);
+      const bTime = b.startAt?.toMillis?.() ?? (typeof (b.startAt as any)?.seconds === 'number' ? (b.startAt as any).seconds * 1000 : 0);
       return aTime - bTime;
     });
+    return sorted.map(toEventResponse);
   }
 
   async update(
@@ -161,7 +188,7 @@ export class EventsService {
       updateData,
     );
     this.logger.log(`Event updated: ${id}`);
-    return updated;
+    return toEventResponse(updated);
   }
 
   async delete(id: string, sellerId: string, userRole: string): Promise<void> {
@@ -239,7 +266,7 @@ export class EventsService {
     if (available <= 0) {
       throw new BadRequestException('No tickets available for this event');
     }
-    return event;
+    return toEventResponse(event);
   }
 
   /** Reserve tickets (call when order is created). */

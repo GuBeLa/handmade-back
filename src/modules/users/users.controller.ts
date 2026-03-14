@@ -92,9 +92,10 @@ export class UsersController {
   }
 
   @Get('sellers')
-  @ApiOperation({ summary: 'List all shops (public)' })
-  async getSellersPublic() {
-    return this.usersService.findAllSellerProfilesPublic();
+  @ApiOperation({ summary: 'List verified shops (public). Query: limit (e.g. 10 for homepage)' })
+  async getSellersPublic(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    return this.usersService.findAllSellerProfilesPublic(Number.isFinite(limitNum) ? limitNum : undefined);
   }
 
   @Get('sellers/:id')

@@ -315,15 +315,19 @@ export class UsersService {
     });
   }
 
-  /** Public: list seller profiles for shop listing. */
-  async findAllSellerProfilesPublic(): Promise<any[]> {
-    const profiles: any[] = await this.firestoreService.findAll('seller_profiles');
+  /** Public: list verified seller profiles for shop listing. Optionally limit (e.g. 10 for homepage). */
+  async findAllSellerProfilesPublic(limit?: number): Promise<any[]> {
+    const profiles: any[] = await this.firestoreService.findAll('seller_profiles', (ref: any) =>
+      ref.where('isVerified', '==', true),
+    );
     const result = await Promise.all(
       profiles.map(async (profile: any) => {
         const user: any = await this.firestoreService.findById('users', profile.userId);
         if (!user || (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN)) {
           return null;
         }
+        const verifiedAt = profile.verifiedAt?.toDate?.() || profile.verifiedAt;
+        const createdAt = profile.createdAt?.toDate?.() || profile.createdAt;
         return {
           userId: profile.userId,
           shopName: profile.shopName,
@@ -333,11 +337,18 @@ export class UsersService {
           region: profile.region,
           categories: profile.categories || [],
           followersCount: profile.followersCount || 0,
-          isVerified: profile.isVerified || false,
+          isVerified: true,
+          verifiedAt: verifiedAt ? new Date(verifiedAt).getTime() : null,
+          createdAt: createdAt ? new Date(createdAt).getTime() : null,
         };
       }),
     );
-    return result.filter(Boolean);
+    const filtered = result.filter(Boolean);
+    filtered.sort((a: any, b: any) => (b.verifiedAt || b.createdAt || 0) - (a.verifiedAt || a.createdAt || 0));
+    if (limit != null && limit > 0) {
+      return filtered.slice(0, limit);
+    }
+    return filtered;
   }
 
   /** Admin only: list all seller profiles with user info (email, name). */
