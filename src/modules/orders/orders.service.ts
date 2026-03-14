@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { CouponsService } from '../promotions/coupons.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class OrdersService {
@@ -20,6 +21,8 @@ export class OrdersService {
     @Inject(forwardRef(() => SubscriptionsService))
     private readonly subscriptionsService: SubscriptionsService,
     private readonly loyaltyService: LoyaltyService,
+    @Inject(forwardRef(() => EventsService))
+    private readonly eventsService: EventsService,
   ) {}
 
   async create(buyerId: string, createDto: CreateOrderDto): Promise<any> {
@@ -293,6 +296,66 @@ export class OrdersService {
     return this.findOne(order.id);
   }
 
+  /** Create an order for event tickets only. Reserves tickets; on cancel, release. */
+  async createEventOrder(buyerId: string, eventId: string, quantity: number): Promise<any> {
+    const event = await this.eventsService.getEventForPurchase(eventId);
+    const available = (event.ticketQuantity ?? 0) - (event.ticketsSold ?? 0);
+    if (available < quantity) {
+      throw new BadRequestException('Not enough tickets available');
+    }
+    await this.eventsService.reserveTickets(eventId, quantity);
+    const price = event.ticketPrice ?? 0;
+    const total = price * quantity;
+    const orderNumber = `EVT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const orderItem = {
+      eventId: event.id,
+      eventTitle: event.titleKa,
+      productImage: event.poster1200x630,
+      price,
+      quantity,
+      total,
+      sellerId: event.sellerId,
+      status: OrderStatus.PENDING,
+    };
+    const orderData: any = {
+      orderNumber,
+      buyerId,
+      type: 'event',
+      items: [orderItem],
+      subtotal: total,
+      discount: 0,
+      loyaltyPointsUsed: 0,
+      loyaltyPointsEarned: 0,
+      freeShipping: true,
+      deliveryFee: 0,
+      commission: 0,
+      total,
+      paymentMethod: PaymentMethod.CARD,
+      deliveryMethod: DeliveryMethod.PICKUP,
+      deliveryAddress: 'ბილეთი - ღონისძიება',
+      status: OrderStatus.PENDING,
+      isPaid: false,
+    };
+    const order = await this.firestoreService.create('orders', orderData);
+    await this.notificationsService.create({
+      userId: buyerId,
+      type: 'order',
+      title: 'Order Placed',
+      message: `Your ticket order #${orderNumber} has been placed`,
+      link: `/orders/${order.id}`,
+    });
+    if (event.sellerId) {
+      await this.notificationsService.create({
+        userId: event.sellerId,
+        type: 'order',
+        title: 'New Event Ticket Order',
+        message: `New ticket order #${orderNumber} for ${event.titleKa}`,
+        link: `/orders/${order.id}`,
+      });
+    }
+    return this.findOne(order.id);
+  }
+
   async findAll(buyerId?: string, sellerId?: string): Promise<any[]> {
     let queryRef: any = this.firestoreService.collection('orders');
 
@@ -303,15 +366,18 @@ export class OrdersService {
     const snapshot = await queryRef.orderBy('createdAt', 'desc').get();
     let orders: any[] = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-    // Filter by seller if needed
+    // Filter by seller if needed (product orders or event orders where sellerId matches)
     if (sellerId) {
-      const sellerProducts: any[] = await this.firestoreService.findAll('products', (ref) =>
+      const sellerProducts: any[] = await this.firestoreService.findAll('products', (ref: any) =>
         ref.where('sellerId', '==', sellerId),
       );
       const productIds = sellerProducts.map((p: any) => p.id);
-      
       orders = orders.filter((order: any) => {
-        return order.items?.some((item: any) => productIds.includes(item.productId));
+        return order.items?.some(
+          (item: any) =>
+            (item.productId && productIds.includes(item.productId)) ||
+            (item.eventId && item.sellerId === sellerId),
+        );
       });
     }
 
@@ -357,10 +423,14 @@ export class OrdersService {
     // Load buyer
     order.buyer = await this.firestoreService.findById('users', order.buyerId);
 
-    // Load products for items
+    // Load products or events for items
     if (order.items) {
       for (const item of order.items) {
-        item.product = await this.firestoreService.findById('products', item.productId);
+        if (item.eventId) {
+          item.event = await this.firestoreService.findById('events', item.eventId);
+        } else if (item.productId) {
+          item.product = await this.firestoreService.findById('products', item.productId);
+        }
       }
     }
 
@@ -434,15 +504,18 @@ export class OrdersService {
       updateData.cancelledAt = new Date();
       updateData.cancellationReason = updateDto.reason;
 
-      // Restore stock
       if (order.items) {
         for (const item of order.items) {
-          const product: any = await this.firestoreService.findById('products', item.productId);
-          if (product) {
-            await this.firestoreService.update('products', product.id, {
-              stock: (product.stock || 0) + item.quantity,
-              totalSales: (product.totalSales || 0) - item.quantity,
-            });
+          if (item.eventId) {
+            await this.eventsService.releaseTickets(item.eventId, item.quantity);
+          } else if (item.productId) {
+            const product: any = await this.firestoreService.findById('products', item.productId);
+            if (product) {
+              await this.firestoreService.update('products', product.id, {
+                stock: (product.stock || 0) + item.quantity,
+                totalSales: (product.totalSales || 0) - item.quantity,
+              });
+            }
           }
         }
       }
@@ -462,9 +535,11 @@ export class OrdersService {
     // Send notification to seller(s) - get unique seller IDs from order items
     const sellerIds = new Set<string>();
     for (const item of order.items || []) {
-      const product: any = await this.firestoreService.findById('products', item.productId);
-      if (product?.sellerId) {
-        sellerIds.add(product.sellerId);
+      if (item.sellerId) {
+        sellerIds.add(item.sellerId);
+      } else if (item.productId) {
+        const product: any = await this.firestoreService.findById('products', item.productId);
+        if (product?.sellerId) sellerIds.add(product.sellerId);
       }
     }
 

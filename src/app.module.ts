@@ -26,6 +26,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { SearchModule } from './modules/search/search.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { EventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { LoyaltyModule } from './modules/loyalty/loyalty.module';
     SearchModule,
     PaymentsModule,
     LoyaltyModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -293,9 +293,38 @@ export class UsersService {
 
     return this.firestoreService.update('seller_profiles', profileId, {
       isVerified: false,
+      verificationStatus: 'rejected',
       verifiedBy: adminId,
       verifiedAt: new Date(),
     });
+  }
+
+  /** Admin only: list all users with optional role filter. Returns sanitized users (no password). */
+  async findAllForAdmin(role?: string): Promise<any[]> {
+    const query = role
+      ? (ref: any) => ref.where('role', '==', role)
+      : undefined;
+    const users: any[] = await this.firestoreService.findAll('users', query);
+    return users.map((u) => {
+      const { password, refreshToken, passwordResetToken, passwordResetExpires, ...rest } = u;
+      return rest;
+    });
+  }
+
+  /** Admin only: list all seller profiles with user info (email, name). */
+  async findAllSellerProfilesForAdmin(): Promise<any[]> {
+    const profiles: any[] = await this.firestoreService.findAll('seller_profiles');
+    const result = await Promise.all(
+      profiles.map(async (profile: any) => {
+        const user: any = await this.firestoreService.findById('users', profile.userId);
+        const { password, refreshToken, ...userSafe } = user || {};
+        return {
+          ...profile,
+          user: userSafe ? { id: user.id, email: user.email, phone: user.phone, firstName: user.firstName, lastName: user.lastName } : null,
+        };
+      }),
+    );
+    return result;
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<any> {

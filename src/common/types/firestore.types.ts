@@ -61,3 +61,48 @@ export interface PopularSearch {
   createdAt: any;
   updatedAt: any;
 }
+
+/** Helper link for event (artist, Facebook, website, etc.) */
+export interface EventLink {
+  label: string;
+  url: string;
+}
+
+/** Contract requisites for event organizer */
+export interface EventContractRequisites {
+  name: string;
+  idCode: string;
+  organizationalUnit: string;
+  directorName: string;
+  email: string;
+  contactPersonName: string;
+  contactPhone: string;
+  accountNumber: string;
+}
+
+export interface Event {
+  id: string;
+  sellerId: string;
+  titleKa: string;
+  titleEn?: string;
+  descriptionKa: string;
+  descriptionEn?: string;
+  poster1200x630?: string;
+  poster1800x600?: string;
+  doorsOpenAt: any;
+  startAt: any;
+  locationUrl: string;
+  ageRestriction?: {
+    childrenAllowed: boolean;
+    freeEntryUntilAge?: number;
+  };
+  links?: EventLink[];
+  ticketPrice: number;
+  ticketQuantity: number;
+  ticketsSold?: number;
+  contractRequisites: EventContractRequisites;
+  isMasterclass?: boolean;
+  status?: 'draft' | 'published';
+  createdAt?: any;
+  updatedAt?: any;
+}

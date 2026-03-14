@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -79,6 +80,15 @@ export class UsersController {
     @Body() updateDto: UpdateSellerProfileDto,
   ) {
     return this.usersService.updateSellerProfile(req.user.sub, updateDto);
+  }
+
+  @Get('seller-profiles')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all seller profiles (Admin only)' })
+  async getAllSellerProfilesForAdmin() {
+    return this.usersService.findAllSellerProfilesForAdmin();
   }
 
   @Get('sellers/:id')
@@ -210,6 +220,15 @@ export class UsersController {
   async deleteAddress(@Request() req, @Param('id') id: string) {
     await this.usersService.deleteAddress(req.user.sub, id);
     return { message: 'Address deleted successfully' };
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all users (Admin only). Optional ?role=buyer|seller|admin' })
+  async findAllForAdmin(@Query('role') role?: string) {
+    return this.usersService.findAllForAdmin(role);
   }
 }
 

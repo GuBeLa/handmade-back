@@ -6,6 +6,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
     forwardRef(() => PromotionsModule),
     forwardRef(() => SubscriptionsModule),
     LoyaltyModule,
+    forwardRef(() => EventsModule),
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

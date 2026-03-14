@@ -38,8 +38,11 @@ export class OrdersController {
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user orders' })
+  @ApiOperation({ summary: 'Get user orders (or all orders for Admin)' })
   async findAll(@Request() req, @Query('sellerId') sellerId?: string) {
+    if (req.user.role === UserRole.ADMIN) {
+      return this.ordersService.findAll(undefined, undefined);
+    }
     if (req.user.role === UserRole.SELLER && sellerId) {
       return this.ordersService.findAll(undefined, req.user.sub);
     }
