@@ -82,26 +82,35 @@ export class UsersService {
   ): Promise<any> {
     const user: any = await this.findById(userId);
 
-    if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
-      throw new BadRequestException('User must be a seller');
-    }
-
     const profile: any = await this.firestoreService.findOneBy(
       'seller_profiles',
       'userId',
       userId,
     );
 
-    // If profile doesn't exist, create it
+    // No profile yet: create it (upsert) and set role to SELLER so PUT can be used to "become a seller"
     if (!profile) {
-      return this.firestoreService.create('seller_profiles', {
+      const created = await this.firestoreService.create('seller_profiles', {
         ...updateDto,
         userId,
         moderationStatus: ModerationStatus.PENDING,
+        isVerified: false,
+        verificationStatus: 'pending',
+        sellerBadges: [],
       });
+      if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
+        await this.firestoreService.update('users', userId, {
+          role: UserRole.SELLER,
+        });
+      }
+      return created;
     }
 
-    // If profile exists, update it
+    // Profile exists: only seller or admin can update
+    if (user.role !== UserRole.SELLER && user.role !== UserRole.ADMIN) {
+      throw new BadRequestException('User must be a seller');
+    }
+
     return this.firestoreService.update('seller_profiles', profile.id, updateDto);
   }
 
