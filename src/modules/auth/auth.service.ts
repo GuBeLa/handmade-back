@@ -19,7 +19,7 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { email, password, firstName, lastName } = registerDto;
+    const { email, password, firstName, lastName, phone } = registerDto;
 
     // Email is required for registration
     if (!email) {
@@ -40,12 +40,13 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user (phone can be added later in profile)
+    // Create user (phone optional at registration, can be added/updated later in profile)
     const user = await this.firestoreService.create('users', {
       email,
       password: hashedPassword,
       firstName,
       lastName,
+      ...(phone && { phone }),
       role: UserRole.BUYER,
       isEmailVerified: false,
       isPhoneVerified: false,

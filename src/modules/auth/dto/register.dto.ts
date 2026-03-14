@@ -20,5 +20,10 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   lastName?: string;
+
+  @ApiProperty({ required: false, description: 'Phone number (e.g. +995...)' })
+  @IsOptional()
+  @IsPhoneNumber(undefined, { message: 'phone must be a valid phone number' })
+  phone?: string;
 }
 
