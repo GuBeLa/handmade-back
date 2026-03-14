@@ -9,7 +9,9 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -57,6 +59,12 @@ export class EventsController {
   @ApiOperation({ summary: 'Get my events (seller)' })
   async getMyEvents(@Request() req: any) {
     return this.eventsService.findMyEvents(req.user.sub);
+  }
+
+  @Get('share-preview/:id')
+  @ApiOperation({ summary: 'HTML share preview for social (OG image = event cover)' })
+  async sharePreview(@Param('id') id: string, @Res() res: Response) {
+    return this.eventsService.getSharePreviewHtml(id, res);
   }
 
   @Get()

@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -13,6 +14,15 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { UserRole } from '../../common/enums/user-role.enum';
 
 const EVENTS_COLLECTION = 'events';
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 @Injectable()
 export class EventsService {
@@ -150,6 +160,55 @@ export class EventsService {
     }
     await this.firestoreService.delete(EVENTS_COLLECTION, id);
     this.logger.log(`Event deleted: ${id}`);
+  }
+
+  /**
+   * Returns HTML page for social share preview (Facebook, etc.).
+   * og:image is set to the event's cover (poster1200x630 or poster1800x600).
+   */
+  async getSharePreviewHtml(eventId: string, res: Response): Promise<void> {
+    let event: Event;
+    try {
+      event = await this.findById(eventId);
+    } catch {
+      res.status(404).setHeader('Content-Type', 'text/html').send(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>ღონისძიება ვერ მოიძებნა</title></head><body><p>ღონისძიება ვერ მოიძებნა.</p></body></html>',
+      );
+      return;
+    }
+    const title = event.titleKa || 'ღონისძიება';
+    const description =
+      (event.descriptionKa || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 200) || title;
+    const imageUrl =
+      event.poster1200x630 || event.poster1800x600 || '';
+    const baseUrl = process.env.API_BASE_URL || 'https://handmade-back-seven.vercel.app/api';
+    const canonicalUrl = `${baseUrl.replace(/\/$/, '')}/events/share-preview/${event.id}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
+  <meta property="og:locale" content="ka_GE">
+  ${imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}">` : ''}
+  ${imageUrl ? `<meta property="og:image:width" content="1200">` : ''}
+  ${imageUrl ? `<meta property="og:image:height" content="630">` : ''}
+  <title>${escapeHtml(title)}</title>
+  <script>window.location.href="${escapeHtml(process.env.SHOP_WEB_URL || 'https://arteli.store')}";</script>
+  <noscript><p><a href="${escapeHtml(process.env.SHOP_WEB_URL || 'https://arteli.store')}">გადადი arteli.store-ზე</a></p></noscript>
+</head>
+<body><p>${escapeHtml(title)}</p></body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
   }
 
   /** Get event for purchase: must be published and have enough tickets. */

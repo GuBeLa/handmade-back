@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { instanceToPlain } from 'class-transformer';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { ModerationStatus } from '../../common/enums/moderation-status.enum';
@@ -57,8 +58,9 @@ export class UsersService {
       throw new BadRequestException('Seller profile already exists');
     }
 
+    const plain = instanceToPlain(createDto) as Record<string, unknown>;
     const profile = await this.firestoreService.create('seller_profiles', {
-      ...createDto,
+      ...plain,
       userId,
       moderationStatus: ModerationStatus.PENDING,
       isVerified: false,
@@ -90,8 +92,9 @@ export class UsersService {
 
     // No profile yet: create it (upsert) and set role to SELLER so PUT can be used to "become a seller"
     if (!profile) {
+      const plain = instanceToPlain(updateDto) as Record<string, unknown>;
       const created = await this.firestoreService.create('seller_profiles', {
-        ...updateDto,
+        ...plain,
         userId,
         moderationStatus: ModerationStatus.PENDING,
         isVerified: false,
@@ -111,7 +114,8 @@ export class UsersService {
       throw new BadRequestException('User must be a seller');
     }
 
-    return this.firestoreService.update('seller_profiles', profile.id, updateDto);
+    const plain = instanceToPlain(updateDto) as Record<string, unknown>;
+    return this.firestoreService.update('seller_profiles', profile.id, plain);
   }
 
   async getSellerProfile(userId: string): Promise<any> {

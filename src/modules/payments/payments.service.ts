@@ -242,9 +242,12 @@ export class PaymentsService {
         const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
         const unitPrice = Number(item.price);
         const price = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0;
+        // Event tickets: use eventId/eventTitle; product orders: use productId/productTitle
+        const productId = item.eventId || item.productId || item.product?.id || 'item';
+        const description = item.eventTitle || item.productTitle || item.product?.title || 'Product';
         return {
-          product_id: String(item.productId || item.product?.id || 'item').slice(0, 255),
-          description: (item.productTitle || item.product?.title || 'Product').slice(0, 255),
+          product_id: String(productId).slice(0, 255),
+          description: String(description).slice(0, 255),
           quantity: qty,
           unit_price: Math.round(price * 100) / 100,
         };
