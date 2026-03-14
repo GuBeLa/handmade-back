@@ -4,6 +4,10 @@
  *
  * Sandbox: https://api.bog.ge/docs/sandbox/payments/introduction
  * Test credentials: client_id (Public Key) 10000164, client_secret (Secret Key) zQ4z2Isfz4Pm
+ *
+ * Callback-Signature (BOG docs):
+ * ხელმოწერა დაგენერირებულია callback-ის request body-ზე private key-ით SHA256withRSA ალგორითმის გამოყენებით.
+ * ვერიფიკაცია: request body (raw) + public key-ით ხელმოწერის შემოწმება. ვერიფიკაცია უნდა მოხდეს payload-ის დესერიალიზაციამდე.
  */
 export interface BogPaymentConfig {
   /** OAuth2 client_id (Public Key from BOG). Sandbox: 10000164 */
@@ -14,7 +18,11 @@ export interface BogPaymentConfig {
   tokenUrl: string;
   /** Payments API base URL (no trailing slash). Sandbox: https://api-sandbox.bog.ge */
   apiBaseUrl: string;
-  /** Public key (PEM) for callback signature verification (SHA256withRSA). From BOG docs or env. */
+  /**
+   * Public key (PEM) for Callback-Signature verification.
+   * BOG signs the raw callback body with their private key (SHA256withRSA); we verify with this public key.
+   * Set via BOG_CALLBACK_PUBLIC_KEY_PEM (multiline or single-line with \n).
+   */
   callbackPublicKeyPem: string;
   /** Platform IBAN for split payment commission (GEL). Optional; if set, split is used. */
   platformIban?: string;
@@ -34,7 +42,7 @@ export function getBogConfigFromEnv(): BogPaymentConfig {
   const apiBaseUrl =
     process.env.BOG_API_BASE_URL ||
     (isSandbox ? 'https://api-sandbox.bog.ge' : 'https://api.bog.ge');
-  const callbackPublicKeyPem =
+  const rawPem =
     process.env.BOG_CALLBACK_PUBLIC_KEY_PEM ||
     `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqczfAuhtxw2iF68kS0Hy
@@ -45,6 +53,8 @@ GyzploVV0NflhwBGeWnvQANUQGr87gsP5k2JG1z5EwnMybJQ7i3XT726rJMaV6QW
 sY5hP72Mtv1I1zL2d9FXm9FWOzbpcXCyxuEBXvqqOHzogri8C7KRRYKyk97Ri7D6
 8wIDAQAB
 -----END PUBLIC KEY-----`;
+  // Allow PEM from env as single line with literal \n (e.g. BOG_CALLBACK_PUBLIC_KEY_PEM="-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----")
+  const callbackPublicKeyPem = rawPem.replace(/\\n/g, '\n').trim();
   const platformIban = process.env.BOG_PLATFORM_IBAN?.trim() || undefined;
   const platformSplitDescription = (process.env.BOG_PLATFORM_SPLIT_DESCRIPTION || 'Platform commission').slice(0, 25);
   return {

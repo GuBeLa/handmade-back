@@ -175,9 +175,9 @@ export class BogPaymentService {
   }
 
   /**
-   * Verify callback signature (Callback-Signature header).
-   * BOG signs the raw request body with SHA256withRSA using their private key.
-   * We verify with the public key. Must use raw body (string or Buffer), not parsed JSON.
+   * Verify Callback-Signature (BOG docs).
+   * ხელმოწერა: request body-ზე private key-ით SHA256withRSA. ვერიფიკაცია უნდა მოხდეს payload-ის დესერიალიზაციამდე.
+   * Uses raw request body + config.callbackPublicKeyPem; header name: Callback-Signature (base64).
    */
   verifyCallbackSignature(rawBody: Buffer | string, signature: string): boolean {
     if (!signature || !this.config.callbackPublicKeyPem) {
@@ -195,7 +195,7 @@ export class BogPaymentService {
 
   /**
    * Parse callback body and return BOG order id and payment status.
-   * Call after verifyCallbackSignature(). Body is the parsed JSON.
+   * Call only after verifyCallbackSignature() — deserialize after verification so body order stays unchanged.
    */
   parseCallbackBody(body: any): { bogOrderId: string; event: string; success: boolean } {
     const event = body?.event || '';

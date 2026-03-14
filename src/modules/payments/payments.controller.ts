@@ -89,6 +89,10 @@ export class PaymentsController {
     );
   }
 
+  /**
+   * BOG callback: verify Callback-Signature on raw body (SHA256withRSA) before deserializing.
+   * Header: Callback-Signature (base64). Raw body required (NestFactory rawBody: true).
+   */
   @Post('bog/callback')
   @ApiOperation({ summary: 'BOG payment callback (server-to-server)' })
   async handleBogCallback(
