@@ -221,7 +221,7 @@ export class ProductsService {
   async findOne(id: string): Promise<any> {
     const product: any = await this.firestoreService.findById('products', id);
 
-    if (!product) {
+    if (!product || product.isActive === false) {
       throw new NotFoundException('Product not found');
     }
 
@@ -262,7 +262,7 @@ export class ProductsService {
   async findBySlug(slug: string): Promise<any> {
     const product: any = await this.firestoreService.findOneBy('products', 'slug', slug);
 
-    if (!product) {
+    if (!product || product.isActive === false) {
       throw new NotFoundException('Product not found');
     }
 
@@ -401,10 +401,12 @@ export class ProductsService {
     });
   }
 
+  /** Returns only active products for the seller (excludes soft-deleted). */
   async getSellerProducts(sellerId: string): Promise<any[]> {
-    const products: any[] = await this.firestoreService.findAll('products', (ref) =>
+    const all: any[] = await this.firestoreService.findAll('products', (ref) =>
       ref.where('sellerId', '==', sellerId).orderBy('createdAt', 'desc'),
     );
+    const products = all.filter((p: any) => p.isActive !== false);
 
     // Load categories
     for (const product of products) {

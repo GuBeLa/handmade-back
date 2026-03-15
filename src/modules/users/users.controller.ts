@@ -150,6 +150,16 @@ export class UsersController {
     return this.usersService.unverifySellerProfile(profileId, req.user.sub);
   }
 
+  @Delete('seller-profiles/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete seller profile / store (Admin only)' })
+  async deleteSellerProfile(@Param('id') profileId: string, @Request() req) {
+    await this.usersService.deleteSellerProfile(profileId, req.user.sub);
+    return { message: 'Seller profile deleted successfully' };
+  }
+
   @Post('sellers/:id/follow')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

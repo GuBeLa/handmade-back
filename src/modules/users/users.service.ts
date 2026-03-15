@@ -303,6 +303,20 @@ export class UsersService {
     });
   }
 
+  /** Admin only: delete seller profile and set user role back to buyer. */
+  async deleteSellerProfile(profileId: string, adminId: string): Promise<void> {
+    const profile: any = await this.firestoreService.findById('seller_profiles', profileId);
+    if (!profile) {
+      throw new NotFoundException('Seller profile not found');
+    }
+    const userId = profile.userId;
+    await this.firestoreService.delete('seller_profiles', profileId);
+    const user: any = await this.firestoreService.findById('users', userId);
+    if (user && user.role === UserRole.SELLER) {
+      await this.firestoreService.update('users', userId, { role: UserRole.BUYER });
+    }
+  }
+
   /** Admin only: list all users with optional role filter. Returns sanitized users (no password). */
   async findAllForAdmin(role?: string): Promise<any[]> {
     const query = role
