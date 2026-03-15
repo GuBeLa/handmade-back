@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { FirestoreService } from '../../common/services/firestore.service';
 import { ModerationStatus } from '../../common/enums/moderation-status.enum';
+import { UserRole } from '../../common/enums/user-role.enum';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
@@ -120,7 +121,7 @@ export class ProductsService {
       if (p.moderationStatus !== ModerationStatus.APPROVED) return false;
       
       // Additional filters
-      if (categoryId && p.categoryId !== categoryId) return false;
+      if (categoryId && String(p.categoryId || '') !== String(categoryId)) return false;
       if (sellerId && p.sellerId !== sellerId) return false;
       if (minPrice !== undefined && p.price < minPrice) return false;
       if (maxPrice !== undefined && p.price > maxPrice) return false;
@@ -364,10 +365,15 @@ export class ProductsService {
     return this.findOne(id);
   }
 
-  async delete(id: string, sellerId: string): Promise<void> {
+  async delete(id: string, userId: string, role?: UserRole): Promise<void> {
     const product: any = await this.firestoreService.findById('products', id);
 
-    if (!product || product.sellerId !== sellerId) {
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const isAdminOrModerator = role === UserRole.ADMIN || role === UserRole.MODERATOR;
+    if (!isAdminOrModerator && product.sellerId !== userId) {
       throw new NotFoundException('Product not found');
     }
 

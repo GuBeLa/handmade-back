@@ -434,6 +434,26 @@ export class OrdersService {
       }
     }
 
+    // Load seller details (user + seller_profile) for each unique seller in order
+    const sellerIds = new Set<string>();
+    for (const item of order.items || []) {
+      if (item.sellerId) sellerIds.add(item.sellerId);
+    }
+    order.sellerDetails = [];
+    for (const sid of sellerIds) {
+      const user: any = await this.firestoreService.findById('users', sid);
+      const sellerProfile: any = await this.firestoreService.findOneBy(
+        'seller_profiles',
+        'userId',
+        sid,
+      );
+      order.sellerDetails.push({
+        sellerId: sid,
+        user: user || null,
+        sellerProfile: sellerProfile || null,
+      });
+    }
+
     // Convert Firestore Timestamps to Date objects for proper JSON serialization
     if (order.createdAt && typeof order.createdAt.toDate === 'function') {
       order.createdAt = order.createdAt.toDate();

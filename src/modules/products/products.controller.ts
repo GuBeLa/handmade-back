@@ -138,11 +138,11 @@ export class ProductsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SELLER, UserRole.ADMIN)
+  @Roles(UserRole.SELLER, UserRole.ADMIN, UserRole.MODERATOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete product (Seller only)' })
+  @ApiOperation({ summary: 'Delete product (Seller own / Admin or Moderator any)' })
   async delete(@Param('id') id: string, @Request() req) {
-    return this.productsService.delete(id, req.user.sub);
+    return this.productsService.delete(id, req.user.sub, req.user.role);
   }
 
   @Post(':id/moderate')
