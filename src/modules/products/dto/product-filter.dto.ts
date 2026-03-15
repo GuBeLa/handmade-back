@@ -22,6 +22,12 @@ export class ProductFilterDto {
   @IsString()
   categoryId?: string;
 
+  /** Alias for categoryId (e.g. ?category=xxx) */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

@@ -92,7 +92,7 @@ export class ProductsService {
       const {
         page = 1,
         limit = 20,
-        categoryId,
+        categoryId: categoryIdParam,
         sellerId,
         minPrice,
         maxPrice,
@@ -104,6 +104,8 @@ export class ProductsService {
         sortBy = 'createdAt',
         sortOrder = 'desc',
       } = filterDto;
+
+      const categoryId = categoryIdParam ?? (filterDto as any).category;
 
       // Get all products and filter in memory to avoid composite index requirements
       // This is acceptable for small to medium datasets
