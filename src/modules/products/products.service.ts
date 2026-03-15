@@ -186,14 +186,15 @@ export class ProductsService {
     }
   }
 
-  /** Returns all products (all moderation statuses) for admin moderation list. */
+  /** Returns all active products (all moderation statuses) for admin moderation list. Excludes soft-deleted (isActive: false). */
   async findAllForModeration(): Promise<{ products: any[]; total: number }> {
     try {
       const allProducts = await this.firestoreService.findAll('products');
       if (!allProducts || allProducts.length === 0) {
         return { products: [], total: 0 };
       }
-      const products = [...allProducts].sort((a: any, b: any) => {
+      const activeProducts = allProducts.filter((p: any) => p.isActive !== false);
+      const products = [...activeProducts].sort((a: any, b: any) => {
         const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
         const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
         return bTime - aTime;

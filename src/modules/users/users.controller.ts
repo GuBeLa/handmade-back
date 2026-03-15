@@ -237,5 +237,14 @@ export class UsersController {
   async findAllForAdmin(@Query('role') role?: string) {
     return this.usersService.findAllForAdmin(role);
   }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete user by ID (Admin only)' })
+  async deleteUser(@Param('id') id: string) {
+    return this.usersService.deleteUser(id);
+  }
 }
 

@@ -627,4 +627,29 @@ export class UsersService {
     await this.getAddress(userId, addressId); // Verify ownership
     await this.firestoreService.delete('user_addresses', addressId);
   }
+
+  /** Delete a user and related data (admin only). Removes seller_profile, user_addresses, then user. */
+  async deleteUser(userId: string): Promise<{ message: string }> {
+    const user: any = await this.firestoreService.findById('users', userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Delete seller profile if exists
+    const sellerProfile = await this.firestoreService.findOneBy('seller_profiles', 'userId', userId);
+    if (sellerProfile?.id) {
+      await this.firestoreService.delete('seller_profiles', sellerProfile.id);
+    }
+
+    // Delete all user addresses
+    const addresses = await this.firestoreService.findAll('user_addresses', (ref) =>
+      ref.where('userId', '==', userId),
+    );
+    for (const addr of addresses) {
+      await this.firestoreService.delete('user_addresses', addr.id);
+    }
+
+    await this.firestoreService.delete('users', userId);
+    return { message: 'User deleted successfully' };
+  }
 }
