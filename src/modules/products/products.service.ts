@@ -185,6 +185,37 @@ export class ProductsService {
     }
   }
 
+  /** Returns all products (all moderation statuses) for admin moderation list. */
+  async findAllForModeration(): Promise<{ products: any[]; total: number }> {
+    try {
+      const allProducts = await this.firestoreService.findAll('products');
+      if (!allProducts || allProducts.length === 0) {
+        return { products: [], total: 0 };
+      }
+      const products = [...allProducts].sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?._seconds * 1000 || 0;
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?._seconds * 1000 || 0;
+        return bTime - aTime;
+      });
+      for (const product of products) {
+        product.category = await this.firestoreService.findById('categories', product.categoryId);
+        const seller = await this.firestoreService.findById('users', product.sellerId);
+        if (seller) {
+          product.seller = seller;
+          product.seller.sellerProfile = await this.firestoreService.findOneBy(
+            'seller_profiles',
+            'userId',
+            seller.id,
+          );
+        }
+      }
+      return { products, total: products.length };
+    } catch (error: any) {
+      console.error('❌ Error in ProductsService.findAllForModeration:', error);
+      throw new Error(`Failed to fetch products for moderation: ${error.message}`);
+    }
+  }
+
   async findOne(id: string): Promise<any> {
     const product: any = await this.firestoreService.findById('products', id);
 

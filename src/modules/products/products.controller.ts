@@ -46,6 +46,15 @@ export class ProductsController {
     return this.productsService.findAll({ ...filterDto, isFeatured: true });
   }
 
+  @Get('for-moderation')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all products for admin moderation (any status)' })
+  async findAllForModeration() {
+    return this.productsService.findAllForModeration();
+  }
+
   @Get('my-products')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
